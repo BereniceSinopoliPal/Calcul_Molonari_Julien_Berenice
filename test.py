@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class Params():
     def __init__(self, params_range, sigma = 0):
         if isinstance(params_range, list):
@@ -8,12 +11,28 @@ class Params():
             self.down=params_range
             self.up=params_range
             self.sigma = 0
+            self._down = params_range[0] 
+            self._up = params_range[1]
+            self._sigma = sigma
 
-    def pertub
+        else :
+            self._down=params_range
+            self._up=params_range
+            self._sigma = 0
 
+        self._value = None
 
-##pw cw lambda
+    def generate(self):
+        self._value = np.random.uniform(self._down,self._up) 
 
+    def pertub(self):
+        self._value +=  np.random.randn(1)[0]*self._sigma
+        ecart = self._up -self._down
+        while self._value > self._up:
+            self._value += -ecart
+        while self._value < self._down:
+            self._value += ecart
+        return self._value
 
 class Column():
     def __init__(h, nb_cellule, dt, data_profondeur, data_temperature, data_pression, rhom_cm=4e6, rho_w=1000, c_w=4180):
@@ -72,7 +91,6 @@ class Column():
 
 
     def run_modele_direct(k, lambda_s, n):
-
 
 
 #### Exemple utilisation
