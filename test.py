@@ -50,8 +50,8 @@ class Column():
             Z = np.array(T_mesure)
             return np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(FY-Z)**2)
 
-        def energie_calcul(T_mesure, T_compute):
-            return T_mesure
+        def energie_calcul(T_mesure, moinslog10K, lambda_s, n, sigma_obs):
+            return -np.log(pi(T_mesure, moinslog10K, lambda_s, n, sigma_obs))
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
