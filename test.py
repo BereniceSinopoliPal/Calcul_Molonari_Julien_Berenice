@@ -40,17 +40,17 @@ class Column():
         self._dH = data_pression
         self._T_mesure = data_temperature
         self._profondeur_mesure = data_profondeur
-
         self.distribution = None # [(k,lambda_s,n)]
 
     def run_MCMC(self, N, sigma_obs_param, k_param, lambda_s_param, n_param):
 
-        def pi(T_mesure, k, lambda_s, n, sigma_obs):
-            FY = np.array(modele_direct(moinslog10K, lambda_s, n)[0]) #attention ici à bien prendre les valeurs du modèle pour les points de mesure
+        def pi(T_mesure, moinslog10k, lambda_s, n, sigma_obs):
+            res = self.run_modele_direct(moinslog10K, lambda_s, n)
+            FY = np.array(res) #attention, vérifier ce que run_modele_direct renvoie en sortie
             Z = np.array(T_mesure)
             return np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(FY-Z)**2)
 
-        def energie(T_mesure, T_compute):
+        def energie_calcul(T_mesure, T_compute):
             return T_mesure
 
 
@@ -58,17 +58,19 @@ class Column():
         k_0 = k_param.generate()
         lambda_s_0 = lambda_s_param.generate()
         n_0 = n_param.generate()
+        sigma_obs = sigma_obs_param.generate()
 
         modele_direct_init = self.run_modele_direct(k_0, lambda_s_0, n_0)
-        energie_init = energie( modele_direct_init, self._T_mesure )
+        energie_init = energie_calcul(modele_direct_init, self._T_mesure)
 
         #Initialisation des tableaux de sortie
 
-
+        params = []
         distribution_a_posteriori = [[k_0, lambda_s_0, n_0]]
         energie = [energie_init]
         profils_temp = [modele_direct_init] #Profils de température
-        proba_acceptation = [] #Probabilité acceptation
+        proba_acceptation = [] #Probabilité acceptation à chaque itération
+        moy_acceptation = [] #Moyenne des probabilitéd d'acceptation à chaque itération
             
         #Chaine de calcul
 
@@ -78,11 +80,11 @@ class Column():
             lambda_s_new = lambda_s_param.perturb()
             n_new = n_param.perturb()
 
-            res = modele_direct
+            #res = modele_direct
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(T_mesure, distribution_a_posteriori[i][0], distribution_a_posteriori[i][1], distribution_a_posteriori[i][2], sigma_obs)
-            piY = pi(T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs)
+            piX = pi(self._T_mesure, distribution_a_posteriori[i][0], distribution_a_posteriori[i][1], distribution_a_posteriori[i][2], sigma_obs)
+            piY = pi(self._T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs)
 
             if piX > 0:
                 alpha = min(1, piY/piX)
@@ -92,16 +94,16 @@ class Column():
             #Acceptation ou non
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
                 params.append([moinslog10K_new, lambda_s_new, n_new])
-                modele_direct_i = run_modele_direct(moinslog10K_new, lambda_s_new, n_new)
-                profils_temp.append(modele_direct_i[-1])
-                energy.append(energie(T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs))
+                modele_direct_i = self.run_modele_direct(moinslog10K_new, lambda_s_new, n_new)
+                profils_temp.append(modele_direct_i)
+                energie.append(energie_calcul(self._T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
             else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
                 params.append(params[-1])
                 profils_temp.append(profils_temp[-1])
-                energy.append(energy[-1])
+                energie.append(energie[-1])
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
@@ -112,6 +114,8 @@ class Column():
     
     def run_modele_direct(self,k, lambda_s, n):
         return True
+
+
 #### Exemple utilisation
 
 #colums = Columns(8, 100, 15*60, *)
