@@ -36,7 +36,7 @@ class Column():
         self._profondeur_mesure = col_dict['Depth_Sensors']
         self._dh = col_dict['Delta_h']
         self._rhom_cm = col_dict['Rhom']
-        self._nb_cellule = self.h/self.dh
+        self._nb_cellule = self._h/self._dh
         self._dt = dt
         self._rho_w=rho_w
         self._c_w=c_w
@@ -62,7 +62,7 @@ class Column():
         sigma_obs = sigma_obs_param.generate()
 
         modele_direct_init = self.run_modele_direct(k_0, lambda_s_0, n_0)
-        energie_init = energie_calcul(modele_direct_init, self._T_mesure)
+        energie_init = energie_calcul(self._T_mesure, k_0, lambda_s_0, n_0, sigma_obs)
 
         #Initialisation des tableaux de sortie
 
