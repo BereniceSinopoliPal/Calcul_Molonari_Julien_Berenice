@@ -36,18 +36,16 @@ class Column():
         self._profondeur_mesure = col_dict['Depth_Sensors']
         self._dh = col_dict['Delta_h']
         self._rhom_cm = col_dict['Rhom']
-        self._nb_cellule = h/dh
+        self._nb_cellule = self.h/self.dh
         self._dt = dt
         self._rho_w=rho_w
         self._c_w=c_w
         self.distribution = None # [(k,lambda_s,n)]
 
-    def from_dict(cls, col_dict):
-        return Column
 
     def run_MCMC(self, N, sigma_obs_param, k_param, lambda_s_param, n_param):
 
-        def pi(T_mesure, moinslog10k, lambda_s, n, sigma_obs):
+        def pi(T_mesure, moinslog10K, lambda_s, n, sigma_obs):
             res = self.run_modele_direct(moinslog10K, lambda_s, n)
             FY = np.array(res) #attention, vérifier ce que run_modele_direct renvoie en sortie
             Z = np.array(T_mesure)
