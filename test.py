@@ -11,7 +11,7 @@ class Params():
             self.down=params_range
             self.up=params_range
             self.sigma = 0
-            self._down = params_range[0] 
+            self._down = params_range[0]
             self._up = params_range[1]
             self._sigma = sigma
 
@@ -23,7 +23,7 @@ class Params():
         self._value = None
 
     def generate(self):
-        self._value = np.random.uniform(self._down,self._up) 
+        self._value = np.random.uniform(self._down,self._up)
 
     def pertub(self):
         self._value +=  np.random.randn(1)[0]*self._sigma
@@ -49,10 +49,10 @@ class Column():
 
         self.distribution = None # [(k,lambda_s,n)]
 
-    def run_MCMC(N, sigma_obs, k_param, lambda_s_param, n_param):
+    def run_MCMC(self, N, sigma_obs, k_param, lambda_s_param, n_param):
 
         def pi(T_mesure, k, lambda_s, n, sigma_obs):
-            FY = np.array(modele_direct(moinslog10K, lambda_s, n)[0])
+            FY = np.array(modele_direct(moinslog10K, lambda_s, n)[0]) #attention ici à bien prendre les valeurs du modèle pour les points de mesure
             Z = np.array(T_mesure)
             return np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(FY-Z)**2)
 
@@ -83,10 +83,49 @@ class Column():
         energie[0] = energie_O
 
         profils_temp = [[] for i in range(N+1)] #Profils de température
+        profils_temp[0] = modele_direct_0
 
-        proba_acceptation = [0 for i in range(N+1)] #Probabilité d'
+        proba_acceptation = [0 for i in range(N+1)]
+        proba_acceptation[0] = 1
 
         moy_acceptation = [0 for i in range(N+1)]
+        moy_acceptation[0] = 1
+
+        #Chaine de calcul
+
+        for i in range(N):
+            #Génération d'un état candidat
+            moinslog10K_new = k_param.perturb()
+            lambda_s_new = lambda_s_param.perturb()
+            n_new = n_param.perturb()
+
+            #Calcul de la probabilité d'acceptation
+            piX = pi(T_mesure, distribution_a_posteriori[i][0], distribution_a_posteriori[i][1], distribution_a_posteriori[i][2], sigma_obs)
+            piY = pi(T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs)
+
+            if piX > 0:
+                alpha = min(1, piY/piX)
+            else :
+                alpha = 1
+
+            #Acceptation ou non
+            if np.random.uniform(0,1) < alpha: #si le candidat est accepté
+                params[i+1] = [moinslog10K_new, lambda_s_new, n_new]
+                modele_direct_i = run_modele_direct(moinslog10K_new, lambda_s_new, n_new)
+                profils_temp[i+1] = modele_direct_i[1]
+                energy[i+1] = energie(T_mesure, moinslog10K_new, lambda_s_new, n_new, sigma_obs)
+                proba_acceptation[i+1] = alpha
+                moy_acceptation[i+1] = np.mean([proba_acceptation[k] for k in range(i+1)])
+
+            else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
+                params[i+1] = params[i]
+                profils_temp[i+1] = profils_temp[i]
+                energy[i+1] = energy[i]
+                proba_acceptation[i+1] = alpha
+                moy_acceptation[i+1] = np.mean([proba_acceptation[k] for k in range(i+1)])
+
+
+        return(distribution_a_posteriori, energie, profils_temp, proba_acceptation, moy_acceptation)
 
 
 
