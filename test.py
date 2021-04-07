@@ -29,22 +29,23 @@ class Params():
         return self._value
 
 class Column():
-    def __init__(self,h, nb_cellule, dt, data_profondeur, data_temperature, data_pression, rhom_cm=4e6, rho_w=1000, c_w=4180):
-        self._h = h
-        self._nb_cellule = nb_cellule
-        self._dh = h/nb_cellule
+    def __init__(self, col_dict, dt, rho_w=1000, c_w=4180):
+        self._h = col_dict['Column_Height']
+        self._dH = col_dict['P_measures']
+        self._T_mesure = col_dict['T_measures']
+        self._profondeur_mesure = col_dict['Depth_Sensors']
+        self._dh = col_dict['Delta_h']
+        self._rhom_cm = col_dict['Rhom']
+        self._nb_cellule = self.h/self.dh
         self._dt = dt
-        self._rhom_cm=rhom_cm
         self._rho_w=rho_w
         self._c_w=c_w
-        self._dH = data_pression
-        self._T_mesure = data_temperature
-        self._profondeur_mesure = data_profondeur
         self.distribution = None # [(k,lambda_s,n)]
+
 
     def run_MCMC(self, N, sigma_obs_param, k_param, lambda_s_param, n_param):
 
-        def pi(T_mesure, moinslog10k, lambda_s, n, sigma_obs):
+        def pi(T_mesure, moinslog10K, lambda_s, n, sigma_obs):
             res = self.run_modele_direct(moinslog10K, lambda_s, n)
             FY = np.array(res) #attention, vérifier ce que run_modele_direct renvoie en sortie
             Z = np.array(T_mesure)
