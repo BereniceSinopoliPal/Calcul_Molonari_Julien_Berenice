@@ -1,3 +1,7 @@
+import numpy as np
+from scipy.interpolate import lagrange
+import matplotlib.pyplot as plt
+
 col_dict = {
     "z_mesure": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
 	"t_mesure": list, #temps des mesures
@@ -12,6 +16,7 @@ priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
     "lambda_s": ...,
+    "sigma_obs":...,
     "rho_m_cm":...
 }
 
@@ -26,13 +31,14 @@ class Column:
         self._h = z_mesure[3]-z_mesure[0]
         self._profondeur_mesure = z_mesure
         self._dh = delta_z
-        self._rhom_cm = prior['rho_m_cm']
+        self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
         self._t_mesure = t_mesure
         self._rho_w = 1000
         self._c_w = 4180
         self.distribution = None # [(k,lambda_s,n)]
 
     def solve_transi(self, param: tuple, nb_cel: int, alpha=0.7):
+
         K= 10**(-param[0])
         lbdm = param[1]
         n = param[2]
@@ -116,47 +122,58 @@ class Column:
             
         return list_temp,list_P
 
-	def compute_mcmc(self, priors: dict, nb_iter: int) -> NoReturn:
-		
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
         def pi(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+            return ((1/sigma_obs**4)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
 
         def compute_energy(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return ((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
+            return ((1/sigma_obs**2)*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
-"""
-        res = self.run_modele_direct(params)
-            FY = np.array(res) #attention, vérifier ce que run_modele_direct renvoie en sortie
-            Z = np.array(T_mesure)"""
+        def perturbation(borne_inf, borne_sup, previous_value, sigma):
+            new_value = np.random.normal(previous_value, sigma)
+            while new_value - borne_sup >0:
+                new_value = borne_inf + (new_value - borne_sup)
+            while borne_inf - new_value >0:
+                new_value = borne_sup - (borne_inf - new_value)
+            return new_value
+
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
         k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
         lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
         n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
+        sigma_obs_0 = np.random.uniform(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1])
+        
+        T_mesure_0,*reste = self.solve_transi((k_0, lambda_s_0, n_0), nb_cel, alpha)
+        energie_init = compute_energy(self._T_mesure, T_mesure_0, sigma_obs_0)
+
 
         #Initialisation des tableaux de valeurs 
         
-        params = = [(k_0, lambda_s_0, n_0)] #Distribution a posteriori des paramètres (k, lambda_s, n)
+        params = [(k_0, lambda_s_0, n_0)] #Distribution a posteriori des paramètres (k, lambda_s, n)
+        sigma_obs_distrib = [sigma_obs_0]
         energie = [energie_init]
-        profils_temp = [modele_direct_init] #Profils de température
+        profils_temp = [T_mesure_0] #Profils de température
         proba_acceptation = [] #Probabilité acceptation à chaque itération
         moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
             
         for i in range(nb_iter):
             #Génération d'un état candidat
-            moinslog10K_new = np.random.normal(params[-1][0], priors['moinslog10K'][1])
-            lambda_s_new = np.random.normal(params[-1][1], priors['lambda_s'][1])
-            n_new = np.random.normal(params[-1][2], priors['n'][1])
 
-            T_res = self.run_modele_direct(params[-1]) #verifier qu'on a bien un array en sortie
+            moinslog10K_new = perturbation(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1],params[-1][0], priors['moinslog10K'][1])
+            lambda_s_new = perturbation(priors['lambda_s'][0][0], priors['lambda_s'][0][1],params[-1][1], priors['lambda_s'][1])
+            n_new = perturbation(priors['n'][0][0], priors['n'][0][1], params[-1][2], priors['n'][1])
+            sigma_obs_new  = perturbation(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1], sigma_obs_distrib[-1], priors['sigma_obs'][1])
+
+            T_res = self.solve_transi((moinslog10K_new, lambda_s_new, n_new), nb_cel, alpha) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, T_res, sigma_obs)
-            piY = pi(self._T_mesure, T_res, sigma_obs)
+            piX = pi(self._T_mesure, profils_temp[-1], sigma_obs_distrib[-1])
+            piY = pi(self._T_mesure, T_res, sigma_obs_new)
 
             if piX > 0:
                 alpha = min(1, piY/piX)
@@ -166,8 +183,9 @@ class Column:
             #Acceptation ou non
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
                 params.append((moinslog10K_new, lambda_s_new, n_new))
+                sigma_obs_distrib.append(sigma_obs_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, T_res, sigma_obs))
+                energie.append(compute_energy(self._T_mesure, T_res, sigma_obs_new))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
@@ -178,42 +196,44 @@ class Column:
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
+        self.distribution = params
+
         return None
     
-	#Ici la list les méthodes (non exhaustives)
-	#pour recup les choses liées à la mcmc
-	#la liste est vouée à évoluer.
+    #Ici la list les méthodes (non exhaustives)
+    #pour recup les choses liées à la mcmc
+    #la liste est vouée à évoluer.
+"""
+    #@mcmc_needed
+    def sample_param(self):
+    #Tire un tuple de param au hasard parmis
+    # #ceux retenus avec la mcmc
+        return param
 
-	@mcmc_needed
-	def sample_param(self):
-	  #Tire un tuple de param au hasard parmis
-		#ceux retenus avec la mcmc
-		return param
+    #@mcmc_needed
+    def get_best_params(self):
+        return best_param
 
-	@mcmc_needed
-	def get_best_params(self):
-		return best_param
+    #@mcmc_needed
+    def get_all_params(self):
+        return params
 
-	@mcmc_needed
-	def get_all_params(self):
-		return params
-	
-	@mcmc_needed
-	def get_all_moinslog10K(self):
-		return moinslog10K_list
+    #@mcmc_needed
+    def get_all_moinslog10K(self):
+        return moinslog10K_list 
 
-	@mcmc_needed
-	def get_all_n(self):
-		return n_list
+    #@mcmc_needed
+    def get_all_n(self):
+        return n_list
 
-	@mcmc_needed
-	def get_all_lambda_s(self):
-		return lambda_s_list
+    #@mcmc_needed
+    def get_all_lambda_s(self):
+        return lambda_s_list
 
-	@mcmc_needed
-	def get_all_energy(self):
-		return energy_list
+    #@mcmc_needed
+    def get_all_energy(self):
+        return energy_list
 
-	@mcmc_needed
-	def get_all_acceptance_ratio(self):
-		return acceptance_ratio_list
+    #@mcmc_needed
+    def get_all_acceptance_ratio(self):
+        return acceptance_ratio_list"""
