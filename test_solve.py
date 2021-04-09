@@ -101,7 +101,7 @@ class Column:
             res = np.linalg.solve(A,C)
             list_temp[j]=res
             
-        return list_temp,list_P
+        return np.array(list_temp),list_P
 
 
 
