@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import lagrange
+
+
+
 class Column:
 
     @classmethod
@@ -104,6 +107,90 @@ class Column:
             
         return list_temp,list_P
 
+    
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
+        def pi(T_mesure, T_calcul, sigma_obs):
+            T_mesure = np.array(T_mesure)
+            T_calcul = np.array(T_calcul)
+            return ((1/sigma_obs**4)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
+
+        def compute_energy(T_mesure, T_calcul, sigma_obs):
+            T_mesure = np.array(T_mesure)
+            T_calcul = np.array(T_calcul)
+            return ((1/sigma_obs**2)*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+
+        def perturbation(borne_inf, borne_sup, previous_value, sigma):
+            new_value = np.random.normal(previous_value, sigma)
+            while new_value - borne_sup >0:
+                new_value = borne_inf + (new_value - borne_sup)
+            while borne_inf - new_value >0:
+                new_value = borne_sup - (borne_inf - new_value)
+            return new_value
+
+
+        #Initialisation des paramètres selon le prior et calcul des valeurs initiales
+        k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
+        lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
+        n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
+        sigma_obs_0 = np.random.uniform(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1])
+        
+        T_mesure_0,*reste = self.solve_transi((k_0, lambda_s_0, n_0), nb_cel, alpha)
+        energie_init = compute_energy(self._T_mesure, T_mesure_0, sigma_obs_0)
+
+
+        #Initialisation des tableaux de valeurs 
+        
+        params = [(k_0, lambda_s_0, n_0)] #Distribution a posteriori des paramètres (k, lambda_s, n)
+        sigma_obs_distrib = [sigma_obs_0]
+        energie = [energie_init]
+        profils_temp = [T_mesure_0] #Profils de température
+        proba_acceptation = [] #Probabilité acceptation à chaque itération
+        moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
+            
+        for i in range(nb_iter):
+            #Génération d'un état candidat
+
+            moinslog10K_new = perturbation(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1],params[-1][0], priors['moinslog10K'][1])
+            lambda_s_new = perturbation(priors['lambda_s'][0][0], priors['lambda_s'][0][1],params[-1][1], priors['lambda_s'][1])
+            n_new = perturbation(priors['n'][0][0], priors['n'][0][1], params[-1][2], priors['n'][1])
+            sigma_obs_new  = perturbation(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1], sigma_obs_distrib[-1], priors['sigma_obs'][1])
+
+            T_res = self.solve_transi((moinslog10K_new, lambda_s_new, n_new), nb_cel, alpha) #verifier qu'on a bien un array en sortie
+
+            #Calcul de la probabilité d'acceptation
+            piX = pi(self._T_mesure, profils_temp[-1][i], sigma_obs_distrib[-1])
+            piY = pi(self._T_mesure, T_res, sigma_obs_new)
+
+            if piX > 0:
+                alpha = min(1, piY/piX)
+            else :
+                alpha = 1
+
+            #Acceptation ou non
+            if np.random.uniform(0,1) < alpha: #si le candidat est accepté
+                params.append((moinslog10K_new, lambda_s_new, n_new))
+                sigma_obs_distrib.append(sigma_obs_new)
+                profils_temp.append(T_res)
+                energie.append(compute_energy(self._T_mesure, T_res, sigma_obs_new))
+                proba_acceptation.append(alpha)
+                moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+
+            else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
+                params.append(params[-1])
+                profils_temp.append(profils_temp[-1])
+                energie.append(energie[-1])
+                proba_acceptation.append(alpha)
+                moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+
+        self.distribution = params
+
+        k_param = [params[i][0] for i in range(len(params))]
+        plt.hist(k_param, bins=20)
+        plt.show()
+
+        return None
+    
+
 
 
 col_dict = {
@@ -121,12 +208,24 @@ col_dict = {
 
 
 
+priors = {
+    "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
+    "n": ((0.01, 0.25), .06),
+    "lambda_s": ((1,5), .5),
+    "sigma_obs":((0.1, 2), 0.05),
+    #"rho_m_cm":...
+}
+
+
 column = Column.from_dict(col_dict)
 param=(4,2,0.15)
 temp, pression = column.solve_transi(param, 100, alpha=0.7)
 #print(res)
 for i,j in enumerate(temp):
     print(type(j))
+    #print(j)
     plt.plot(j, np.linspace(0,0.4,100),label=f'{i}')
 plt.legend()
 plt.show()
+
+column.mcmc(priors, 100, 100, 0.7)
