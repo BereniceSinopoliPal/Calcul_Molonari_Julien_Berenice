@@ -6,8 +6,6 @@ col_dict = {
     "temp_mesure": np.array, # shape (N,4) Chaque 4-uplets de mesure de temperature au temps t
     "sigma_p": .4, #incertitude sur la pression
     "sigma_temp" : [3., 2., 4., 3.]
-    "rho_w": 3 #mettre la vraie valeur
-    "c_w":2 #idem
 }
 
 priors = {
@@ -31,8 +29,8 @@ class Column:
         self._dh = delta_z
         self._rhom_cm = prior['rho_m_cm']
         self._t_mesure = t_mesure
-        self._rho_w = rho_w
-        self._c_w = c_w
+        self._rho_w = 1000
+        self._c_w = 4180
         self.distribution = None # [(k,lambda_s,n)]
 
 
