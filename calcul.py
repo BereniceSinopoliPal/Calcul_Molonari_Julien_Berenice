@@ -116,7 +116,7 @@ class Column:
             
         return list_temp,list_P
 
-	def compute_mcmc(self, priors: dict, nb_iter: int) -> NoReturn:
+def compute_mcmc(self, priors: dict, nb_iter: int):
 		
         def pi(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
