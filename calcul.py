@@ -12,13 +12,12 @@ priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
     "lambda_s": ...,
-	“rho_m_cm”: ...
+    "rho_m_cm":...
 }
 
 class Column:
-    	
-	@classmethod
-	def from_dict(cls, col_dict):
+    @classmethod
+    def from_dict(cls, col_dict):
         return cls(**col_dict)
 
     def __init__(self, z_mesure, t_mesure, delta_z, p_mesure, temp_mesure, sigma_p, sigma_temp):
@@ -39,9 +38,69 @@ class Column:
 		return (z_array, t_array), (temps, debit)
 
 	def compute_mcmc(self, priors: dict, nb_iter: int) -> NoReturn:
-		…
-	
-	
+		
+        def pi(T_mesure, T_calcul, sigma_obs):
+            T_mesure = np.array(T_mesure)
+            T_calcul = np.array(T_calcul)
+            return np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+
+        def compute_energy(T_mesure, T_calcul, sigma_obs):
+            T_mesure = np.array(T_mesure)
+            T_calcul = np.array(T_calcul)
+            return ((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
+
+"""
+        res = self.run_modele_direct(params)
+            FY = np.array(res) #attention, vérifier ce que run_modele_direct renvoie en sortie
+            Z = np.array(T_mesure)"""
+
+        #Initialisation des paramètres selon le prior et calcul des valeurs initiales
+        k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
+        lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
+        n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
+
+        #Initialisation des tableaux de valeurs 
+        
+        params = = [(k_0, lambda_s_0, n_0)] #Distribution a posteriori des paramètres (k, lambda_s, n)
+        energie = [energie_init]
+        profils_temp = [modele_direct_init] #Profils de température
+        proba_acceptation = [] #Probabilité acceptation à chaque itération
+        moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
+            
+        for i in range(nb_iter):
+            #Génération d'un état candidat
+            moinslog10K_new = np.random.normal(params[-1][0], priors['moinslog10K'][1])
+            lambda_s_new = np.random.normal(params[-1][1], priors['lambda_s'][1])
+            n_new = np.random.normal(params[-1][2], priors['n'][1])
+
+            T_res = self.run_modele_direct(params[-1]) #verifier qu'on a bien un array en sortie
+
+            #Calcul de la probabilité d'acceptation
+            piX = pi(self._T_mesure, T_res, sigma_obs)
+            piY = pi(self._T_mesure, T_res, sigma_obs)
+
+            if piX > 0:
+                alpha = min(1, piY/piX)
+            else :
+                alpha = 1
+
+            #Acceptation ou non
+            if np.random.uniform(0,1) < alpha: #si le candidat est accepté
+                params.append((moinslog10K_new, lambda_s_new, n_new))
+                profils_temp.append(T_res)
+                energie.append(compute_energy(self._T_mesure, T_res, sigma_obs))
+                proba_acceptation.append(alpha)
+                moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+
+            else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
+                params.append(params[-1])
+                profils_temp.append(profils_temp[-1])
+                energie.append(energie[-1])
+                proba_acceptation.append(alpha)
+                moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+
+        return None
+    
 	#Ici la list les méthodes (non exhaustives)
 	#pour recup les choses liées à la mcmc
 	#la liste est vouée à évoluer.
