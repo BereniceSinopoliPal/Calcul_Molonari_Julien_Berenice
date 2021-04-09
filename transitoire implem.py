@@ -1,8 +1,6 @@
 ### transitoire implem
 import numpy as np
 import matplotlib.pyplot as plt
-def run_modele_direct():
-    pass
 
 p_init = np.linspace(1,2,100).reshape((100,1))
 #print(p_init) #réfléchir à passer la porosité plutot de Ss
@@ -64,7 +62,7 @@ def run_modele_solve(Mat_q, Temp_prev,lbdm, pmcm, dz, dt, T0, Tn, alpha=1):
     for i in range(len(Mat_q)-1):
         #print((Mat_q[i+1]-Mat_q[i]))
         delta_H[i]=(Mat_q[i+1]-Mat_q[i])/dz
-    print(delta_H)
+    #print(delta_H)
     n= Temp_prev.shape[0]
     A=np.zeros((n,n))
     B=np.zeros((n,n))
@@ -80,13 +78,13 @@ def run_modele_solve(Mat_q, Temp_prev,lbdm, pmcm, dz, dt, T0, Tn, alpha=1):
 
 
     for i in range(1,n-1):
-        A[i][i-1]=alpha*(ke/dz**2 - ae*delta_H[i]/(2*dz**2))
+        A[i][i-1]=alpha*(ke/dz**2 - ae*delta_H[i]/(2*dz))
         A[i][i]=alpha*(-2*ke/dz**2) - 1/dt
-        A[i][i+1]=alpha*(ke/dz**2 + ae*delta_H[i]/(2*dz**2))
+        A[i][i+1]=alpha*(ke/dz**2 + ae*delta_H[i]/(2*dz))
 
-        B[i][i-1]=-(1-alpha)*(ke/dz**2 - ae*delta_H[i]/(2*dz**2))
+        B[i][i-1]=-(1-alpha)*(ke/dz**2 - ae*delta_H[i]/(2*dz))
         B[i][i]=-(1-alpha)*(-2*ke/dz**2) - 1/dt
-        B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz**2))
+        B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
 
 
     C = B @ Temp_prev
@@ -97,13 +95,17 @@ def run_modele_solve(Mat_q, Temp_prev,lbdm, pmcm, dz, dt, T0, Tn, alpha=1):
     #print(res)
     return res
 
-T_init = np.linspace(10+273,30+273,100).reshape((100,1))
+print(np.random.normal(0,1,100))
+T_init = np.linspace(10+273,30+273,100).reshape((100,1)) 
+for i in range(len(T_init)):
+    T_init[i] += np.random.normal(0,1,1)[0]
+print(T_init)
 plt.close('all')
 p_init = np.linspace(1,1.1,100)
-print(p_init)
-for i in range(20):
+#print(p_init)
+for i in range(30):
     plt.plot(T_init,range(len(T_init)),label='%s' %i)
-    T_init = run_modele_solve(p_init, T_init, 3, 4e5, 0.1, 60*60, 10+273+0.1*i, 30+273, alpha=0.7)
+    T_init = run_modele_solve(p_init, T_init, 3, 4e5, 0.1, 24*60*60, 10+273+1*i, 30+273, alpha=0.7)
 plt.legend()
 plt.show() 
 # fichier d'initialisation du projet à faire clean
