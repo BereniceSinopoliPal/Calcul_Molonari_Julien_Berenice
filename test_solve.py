@@ -103,7 +103,7 @@ class Column:
             C[0],C[nb_cel-1]= self._T_mesure[j][0],self._T_mesure[j][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
-            list_temp=np.array([np.array(i) for i in list_temp])
+            list_temp=np.asarray(list_temp)
             
         return list_temp,list_P
 
@@ -222,7 +222,7 @@ param=(4,2,0.15)
 temp, pression = column.solve_transi(param, 100, alpha=0.7)
 #print(res)
 for i,j in enumerate(temp):
-    print(type(j))
+    #print(type(j))
     #print(j)
     plt.plot(j, np.linspace(0,0.4,100),label=f'{i}')
 plt.legend()
