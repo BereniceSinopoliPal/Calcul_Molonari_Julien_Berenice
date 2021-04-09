@@ -22,6 +22,8 @@ class Column:
 		…
 		return column
 
+	def __init__(self, z_mesure, t_mesurea,b,c):
+		self._h=h
 	def solve_transi(self, param: tuple, nb_cel: int):
 		…
 		return (z_array, t_array), (temps, debit)

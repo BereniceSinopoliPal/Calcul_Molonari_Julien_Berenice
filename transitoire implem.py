@@ -105,7 +105,7 @@ p_init = np.linspace(1,1.1,100)
 #print(p_init)
 for i in range(30):
     plt.plot(T_init,range(len(T_init)),label='%s' %i)
-    T_init = run_modele_solve(p_init, T_init, 3, 4e5, 0.1, 24*60*60, 10+273+1*i, 30+273, alpha=0.7)
+    T_init = run_modele_solve(p_init, T_init, 3, 4e5, 0.1, 24*60*60, 10+273+1*(-i), 30+273, alpha=0.7)
 plt.legend()
 plt.show() 
 # fichier d'initialisation du projet à faire clean
