@@ -1,26 +1,40 @@
 col_dict = {
     "z_mesure": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
-	 "t_mesure": list, #temps des mesures
+	"t_mesure": list, #temps des mesures
     "delta_z": .05, # Decalage de profondeur des capteurs
     "p_mesure": np.array, # shape (N,) Chaque pression au temps t
     "temp_mesure": np.array, # shape (N,4) Chaque 4-uplets de mesure de temperature au temps t
     "sigma_p": .4, #incertitude sur la pression
     "sigma_temp" : [3., 2., 4., 3.]
+    "rho_w": 3 #mettre la vraie valeur
+    "c_w":2 #idem
 }
 
 priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
     "lambda_s": ...,
-	 “rho_m_cm”: ...
+	“rho_m_cm”: ...
 }
 
 class Column:
     	
 	@classmethod
 	def from_dict(cls, col_dict):
-		…
-		return column
+        return cls(**col_dict)
+
+    def __init__(self, z_mesure, t_mesure, delta_z, p_mesure, temp_mesure, sigma_p, sigma_temp):
+        self._dH = p_mesure
+        self._T_mesure = temp_mesure
+        self._h = z_mesure[3]-z_mesure[0]
+        self._profondeur_mesure = z_mesure
+        self._dh = delta_z
+        self._rhom_cm = prior['rho_m_cm']
+        self._t_mesure = t_mesure
+        self._rho_w = rho_w
+        self._c_w = c_w
+        self.distribution = None # [(k,lambda_s,n)]
+
 
 	def __init__(self, z_mesure, t_mesurea,b,c):
 		self._h=h
