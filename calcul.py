@@ -37,17 +37,15 @@ class Column:
         self._c_w = 4180
         self.distribution = None # [(k,lambda_s,n)]
 
-    def solve_transi(self, param: tuple, nb_cel: int, alpha=0.7):
-
-        K= 10**(-param[0])
-        lbdm = param[1]
-        n = param[2]
+    def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
+        K= param[0]
+        n = param[1]
         dz = self._h/nb_cel
         Ss = n/self._h
 
         list_P = [[] for i in range(len(self._t_mesure))]
-        list_P[0] = np.linspace(*self._dH[0], nb_cel)
-        
+        list_P[0] = np.linspace(self._dH[0],0,nb_cel)
+
         for j in range(1, len(self._t_mesure)):
             dt = self._t_mesure[j] - self._t_mesure[j-1]
             A = np.zeros((nb_cel, nb_cel))
@@ -76,38 +74,67 @@ class Column:
                 B[i][i-1] = -K*(1-alpha)/dz**2
                 B[i][i] = (2*K*(1-alpha)/dz**2) - Ss/dt
                 B[i][i+1] = -K*(1-alpha)/dz**2
-            #print(list_P[i-1])
+            
             C = B @ list_P[j-1]
-            C[0], C[nb_cel-1] = self._dH[j]
+            C[0], C[nb_cel-1] = self._dH[j],0
 
             res = np.linalg.solve(A, C)
             list_P[j] = res
+        
+        delta_H=[[] for p in range(len(self._t_mesure))]
+        for j in range(len(self._t_mesure)):    
+            for p in range(len(list_P[j])-1):
+                delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
+        return np.asarray(delta_H)
+
+    def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
+        K= param[0]
+        lbds = param[1]
+        n = param[2] ##normal ?
+        pmcm = param[3]
+
+        dz = self._h/nb_cel
+        lbdm = (n*np.sqrt(0.6)+(1-n)*np.sqrt(lbds))**2
+
 
         list_temp = [[] for i in range(len(self._t_mesure))]
 
         coef = lagrange(self._profondeur_mesure,self._T_mesure[0])
-        print(self._h)
         profondeur = np.linspace(0.1,0.4,nb_cel)
         profondeur_inter = coef(profondeur)
         list_temp[0] = profondeur_inter
 
-        ke = lbdm/self._rhom_cm##lbm/pmcm
-        ae = K # K *pwcw/pmcm
+        ke = lbdm/pmcm##lbm/pmcm
+        ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
 
         for j in range(1, len(self._t_mesure)):
-            delta_H=[[] for p in range(len(list_P[j]))]
-            for p in range(len(list_P[j])-1):
-                delta_H[p] =  (list_P[j][p+1]-list_P[j][p])/dz
+            dt = self._t_mesure[j] - self._t_mesure[j-1]
+            delta_H= grad_h[j]
             A=np.zeros((nb_cel,nb_cel))
             B=np.zeros((nb_cel,nb_cel))
 
             A[0][0]= 1
             A[nb_cel-1][nb_cel-1]=1
+            A[1][0]=alpha*(2*ke/dz**2 - ae*delta_H[1]/(2*dz))
+            A[1][1]=alpha*(-2*ke/dz**2)*(3/2) - 1/dt
+            A[1][2]=alpha*(ke/dz**2 + ae*delta_H[1]/(2*dz))
+            A[nb_cel-2][nb_cel-3]=alpha*(ke/dz**2 + ae*delta_H[nb_cel-2]/(2*dz))
+            A[nb_cel-2][nb_cel-2]=alpha*(-2*ke/dz**2)*(3/2) - 1/dt
+            A[nb_cel-2][nb_cel-1]=alpha*(2*ke/dz**2 - ae*delta_H[nb_cel-2]/(2*dz))
+
 
             B[0][0]= 1
             B[nb_cel-1][nb_cel-1]=1
 
-            for i in range(1,nb_cel-1):
+            B[1][0]=-(1-alpha)*(2*ke/dz**2 - ae*delta_H[1]/(2*dz))
+            B[1][1]=-(1-alpha)*(-2*ke/dz**2)*(3/2) - 1/dt
+            B[1][2]=-(1-alpha)*(ke/dz**2 + ae*delta_H[1]/(2*dz))
+            B[nb_cel-2][nb_cel-3]=-(1-alpha)*(ke/dz**2 + ae*delta_H[nb_cel-2]/(2*dz))
+            B[nb_cel-2][nb_cel-2]=-(1-alpha)*(-2*ke/dz**2)*(3/2) - 1/dt
+            B[nb_cel-2][nb_cel-1]=-(1-alpha)*(2*ke/dz**2 - ae*delta_H[nb_cel-2]/(2*dz))
+
+
+            for i in range(2,nb_cel-2):
                 A[i][i-1]=alpha*(ke/dz**2 - ae*delta_H[i]/(2*dz))
                 A[i][i]=alpha*(-2*ke/dz**2) - 1/dt
                 A[i][i+1]=alpha*(ke/dz**2 + ae*delta_H[i]/(2*dz))
@@ -119,8 +146,22 @@ class Column:
             C[0],C[nb_cel-1]= self._T_mesure[j][0],self._T_mesure[j][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
+        list_temp=np.asarray(list_temp)
             
-        return list_temp,list_P
+        return list_temp
+
+    def solve_transi(self, param: dict, alpha=0.7):
+        K = 10**(-param['K'])
+        lbds = param['lambda_S']
+        n = param['n']
+        pmcm = param['Rho_m_C_m']
+        nb_cel = param['nb_cel']
+
+        delta_H = self.solve_hydro((K,n),nb_cel)
+
+        res_temp= self.solve_thermique((K,lbds,n,pmcm),nb_cel,delta_H)
+
+        return res_temp,delta_H
 
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
         def pi(T_mesure, T_calcul, sigma_obs):
