@@ -190,7 +190,7 @@ class Column:
         sigma_obs_0 = np.random.uniform(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1])
         
         T_mesure_0,*reste = self.solve_transi((k_0, lambda_s_0, n_0), nb_cel, alpha)
-        energie_init = compute_energy(self._T_mesure, T_mesure_0, sigma_obs_0)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], sigma_obs_0)
 
 
         #Initialisation des tableaux de valeurs 
@@ -210,11 +210,11 @@ class Column:
             n_new = perturbation(priors['n'][0][0], priors['n'][0][1], params[-1][2], priors['n'][1])
             sigma_obs_new  = perturbation(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1], sigma_obs_distrib[-1], priors['sigma_obs'][1])
 
-            T_res = self.solve_transi((moinslog10K_new, lambda_s_new, n_new), nb_cel, alpha) #verifier qu'on a bien un array en sortie
+            T_res,*reste = self.solve_transi((moinslog10K_new, lambda_s_new, n_new), nb_cel, alpha) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, profils_temp[-1], sigma_obs_distrib[-1])
-            piY = pi(self._T_mesure, T_res, sigma_obs_new)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], sigma_obs_distrib[-1])
+            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], sigma_obs_new)
 
             if piX > 0:
                 alpha = min(1, piY/piX)
@@ -226,7 +226,7 @@ class Column:
                 params.append((moinslog10K_new, lambda_s_new, n_new))
                 sigma_obs_distrib.append(sigma_obs_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, T_res, sigma_obs_new))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], sigma_obs_new))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
@@ -238,6 +238,10 @@ class Column:
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
         self.distribution = params
+
+        k_param = [params[i][0] for i in range(len(params))]
+        plt.hist(k_param, bins=20)
+        plt.show()
 
         return None
     
