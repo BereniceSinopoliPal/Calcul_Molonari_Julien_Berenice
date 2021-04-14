@@ -110,14 +110,8 @@ class Column:
         ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
 
         for j in range(1, len(self._t_mesure)):
-<<<<<<< HEAD
-            delta_H=[[] for p in range(len(list_P[j]))]
-            for p in range(len(list_P[j])-1):
-                delta_H[p] =  (list_P[j][p+1]-list_P[j][p])/dz ##grad H
-=======
             dt = self._t_mesure[j] - self._t_mesure[j-1]
             delta_H= grad_h[j]
->>>>>>> a5d8b2bc94cb5fe87a3aa602f3c84876cb045ec9
             A=np.zeros((nb_cel,nb_cel))
             B=np.zeros((nb_cel,nb_cel))
 
