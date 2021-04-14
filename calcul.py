@@ -3,7 +3,7 @@ from scipy.interpolate import lagrange
 import matplotlib.pyplot as plt
 
 col_dict = {
-    "z_mesure": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
+    "z_mesure": np.array([.1, .2, .3, .4]), # Profondeur ou sont les capteurs
 	"t_mesure": list, #temps des mesures
     "delta_z": .05, # Decalage de profondeur des capteurs
     "p_mesure": np.array, # shape (N,) Chaque pression au temps t #a renommer, on a pas les pressions mais une différence de pression
@@ -199,6 +199,11 @@ class Column:
                 return (np.log(rho2*cs2/(rho1*cs1)) - abs(np.log(rho2*cs1/x)) - abs(np.log(rho1*cs2/x)))/(2*(rho2-rho1)*(cs2-cs1))
 
 
+        #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
+
+        indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
+        indice_capteurs_interieur = indice_capteur[]
+
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
         k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
@@ -219,7 +224,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, self._sigma_temp)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteur], param_0, self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -252,8 +257,8 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], self._sigma_temp)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, self._sigma_temp)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteur], params[-1], self._sigma_temp)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteur], param_new, self._sigma_temp)
             
 
             if piX > 0:
@@ -317,6 +322,10 @@ class Column:
 
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
+
+    def get_flows_solve(self):
+        
+
 
 
 """
