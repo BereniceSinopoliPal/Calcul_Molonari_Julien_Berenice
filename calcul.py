@@ -219,7 +219,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, _sigma_temp)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -252,8 +252,8 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], _sigma_temp)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, _sigma_temp)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], self._sigma_temp)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, self._sigma_temp)
             
 
             if piX > 0:
@@ -265,7 +265,7 @@ class Column:
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
                 params.append(param_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, _sigma_temp))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, self._sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
