@@ -33,6 +33,8 @@ class Column:
         self._dh = delta_z
         #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
         self._t_mesure = t_mesure
+        self._sigma_p = sigma_p
+        self._sigma_temp = sigma_temp
         self._rho_w = 1000
         self._c_w = 4180
         self.distribution = None # [(k,lambda_s,n)]
@@ -164,7 +166,7 @@ class Column:
 
         return res_temp,delta_H
 
-    def mcmc(self, priors: dict, sigma_obs:float, nb_iter: int, nb_cel: int, alpha: float):
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
 
         self.run_mcmc = True 
 
@@ -217,7 +219,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, sigma_obs)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, _sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -250,8 +252,8 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], sigma_obs)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, sigma_obs)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], _sigma_temp)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, _sigma_temp)
             
 
             if piX > 0:
@@ -263,7 +265,7 @@ class Column:
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
                 params.append(param_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, sigma_obs))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, _sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
