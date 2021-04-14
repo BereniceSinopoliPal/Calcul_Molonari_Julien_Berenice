@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import lagrange
 import matplotlib.pyplot as plt
+import random as rd
 
 col_dict = {
     "z_mesure": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
@@ -245,15 +246,11 @@ class Column:
 
         return None
     
-    #Ici la list les méthodes (non exhaustives)
-    #pour recup les choses liées à la mcmc
-    #la liste est vouée à évoluer.
+
+    
 """
     #@mcmc_needed
-    def sample_param(self):
-    #Tire un tuple de param au hasard parmis
-    # #ceux retenus avec la mcmc
-        return param
+    
 
     #@mcmc_needed
     def get_best_params(self):
