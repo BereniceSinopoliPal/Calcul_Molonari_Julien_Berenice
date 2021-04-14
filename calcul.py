@@ -208,7 +208,7 @@ class Column:
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
         indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteur[]
+        indice_capteurs_interieur = indice_capteur[1:4]
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
@@ -315,16 +315,19 @@ class Column:
         return self.distrib_a_posteriori[argmin_energie]
 
     def get_all_moinslog10K(self):
-        return np.asarray(zip(*self.distrib_a_posteriori[0]))
+        return np.asarray(list(zip(*self.distrib_a_posteriori)))[0]
 
     def get_all_lambda_s(self):
-        return np.asarray(zip(*self.distrib_a_posteriori[1]))
+        return np.asarray(list(zip(*self.distrib_a_posteriori)))[1]
     
     def get_all_lambda_n(self):
-        return np.asarray(zip(*self.distrib_a_posteriori[2]))
+        return np.asarray(list(zip(*self.distrib_a_posteriori)))[2]
 
     def get_all_rhos_cs(self):
-        return np.asarray(zip(*self.distrib_a_posteriori[3]))
+        return np.asarray(list(zip(*self.distrib_a_posteriori)))[3]
 
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
+
+    def get_flows_solve(self):
+        return None
