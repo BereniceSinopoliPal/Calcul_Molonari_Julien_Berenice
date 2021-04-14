@@ -34,7 +34,7 @@ class Column:
         self._profondeur_mesure = z_mesure
         self._dh = delta_z
         #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
-        self._t_mesure = t_mesure
+        #self._t_mesure = t_mesure
         self._sigma_p = sigma_p
         self._sigma_temp = sigma_temp
         self._rho_w = 1000
@@ -208,34 +208,35 @@ class Column:
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
         indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteur[1:4]
+        indice_capteurs_interieur = indice_capteurs[1:4]
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
-        k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
+        moinslog10K_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
         lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
         n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
         rho_s_0 = np.random.uniform(priors['rho_s'][0][0], priors['rho_s'][0][1])
         c_s_0 = np.random.uniform(priors['c_s'][0][0], priors['c_s'][0][1])
 
         rhos_cs_0 = rho_s_0*c_s_0
-        param_0 = (k_0, lambda_s_0, n_0, rhos_cs_0)
+        param_0 = (moinslog10K_0, lambda_s_0, n_0, rhos_cs_0)
 
-        dict_params = {
-            "moinslog10K": k_0,
+        dict_params_0 = {
+            "moinslog10K": moinslog10K_0,
             "lambda_s": lambda_s_0,
             "n": n_0,
             "rhos_cs": rhos_cs_0,
             "nb_cel": nb_cel
         }
         
-        T_mesure_0,*reste = self.solve_transi(dict_params)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteur], param_0, self._sigma_temp)
+        T_mesure_0,*reste = self.solve_transi(dict_params_0)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
         
         params = [param_0] #Distribution a posteriori des paramètres (k, lambda_s, n, rho_s, c_s)
+        all_dict_params = [dict_params_0]
         energie = [energie_init]
         profils_temp = [T_mesure_0] #Profils de température
         proba_acceptation = [] #Probabilité acceptation à chaque itération
@@ -253,18 +254,21 @@ class Column:
             param_new = (moinslog10K_new, lambda_s_new, n_new, rhos_cs_new)
 
             #Résolution du régime transitoire
-            dict_params["moinslog10K"] = moinslog10K_new,
-            dict_params["lambda_s"] = lambda_s_new,
-            dict_params["n"] = n_new
-            dict_params["rhos_cs"] = rhos_cs_new
-            dict_params["nb_cel"] = nb_cel
             
+            dict_params_new = {
+                "moinslog10K": moinslog10K_new,
+                "lambda_s": lambda_s_new,
+                "n": n_new,
+                "rhos_cs": rhos_cs_new,
+                "nb_cel": nb_cel
+            }
+                
 
-            T_res,*reste = self.solve_transi(dict_params) #verifier qu'on a bien un array en sortie
+            T_res,*reste = self.solve_transi(dict_params_new) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteur], params[-1], self._sigma_temp)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteur], param_new, self._sigma_temp)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], params[-1], self._sigma_temp)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], param_new, self._sigma_temp)
             
 
             if piX > 0:
@@ -275,13 +279,15 @@ class Column:
             #Acceptation ou non
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
                 params.append(param_new)
+                all_dict_params.append(dict_params_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, self._sigma_temp))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], param_new, self._sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
             else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
                 params.append(params[-1])
+                all_dict_params.append(all_dict_params[-1])
                 profils_temp.append(profils_temp[-1])
                 energie.append(energie[-1])
                 proba_acceptation.append(alpha)
@@ -290,7 +296,7 @@ class Column:
         self.distrib_a_posteriori = params
         self.energie = energie
         self.moy_acceptation = moy_acceptation
-
+        self.profils_temp = profils_temp
 
         """
         k_param = [params[i][0] for i in range(len(params))]
@@ -303,7 +309,7 @@ class Column:
 
     #@mcmc_needed
     def sample_param(self):
-        a = np.random.randint(0, len(self.distrib_a_posteriori)-1)
+        a = np.random.randint(0, len(self.distrib_a_posteriori))
         sampled_param = self.distrib_a_posteriori[a] #vérifier la forme de distrib
         return sampled_param
 
@@ -329,5 +335,15 @@ class Column:
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
 
-    def get_flows_solve(self):
-        return None
+    def get_temps_quantile(self, quantile): 
+        temp_zip = list(zip(*self.profils_temp))
+        profil_quantile = np.quantile(temp_zip, quantile, axis=1)
+        return profil_quantile # tableau avec une colonne par pas de temps mais on pourrait aussi prendre la transposée ? a voir
+
+    def get_quantile_param(self, quantile):
+        return np.quantile(self.distrib_a_posteriori, quantile, axis=0)
+
+    #def get_flow_quantile(self, quantile):
+
+
+        
