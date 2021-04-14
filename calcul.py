@@ -1,15 +1,16 @@
 import numpy as np
 from scipy.interpolate import lagrange
 import matplotlib.pyplot as plt
+import random as rd
 
 col_dict = {
-    "z_mesure": np.array([.1, .2, .3, .4]), # Profondeur ou sont les capteurs
-	"t_mesure": list, #temps des mesures
-    "delta_z": .05, # Decalage de profondeur des capteurs
-    "p_mesure": np.array, # shape (N,) Chaque pression au temps t #a renommer, on a pas les pressions mais une différence de pression
-    "temp_mesure": np.array, # shape (N,4) Chaque 4-uplets de mesure de temperature au temps t
-    "sigma_p": .4, #incertitude sur la pression
-    "sigma_temp" : [3., 2., 4., 3.]
+    "river_bed": 1, ##hauteur de la rivière en m
+    "offset" : 0.05,#décalage
+    "depth_sensores": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
+    "dH_mesures": list, # Decalage de profondeur des capteurs
+    "temp_mesure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
+    "sigma_meas_P": .4, #incertitude sur la pression
+    "sigma_meas_T" : [3., 2., 4., 3.]
 }
 
 priors = {
@@ -25,9 +26,10 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, z_mesure, t_mesure, delta_z, p_mesure, temp_mesure, sigma_p, sigma_temp):
-        self._dH = p_mesure
+    def __init__(self, river_bed,z_mesure, delta_z, mesure_capteur_P, temp_mesure, sigma_p, sigma_temp):
+        self._dH = mesure_capteur_P
         self._T_mesure = temp_mesure
+        self._t_mesure = []
         self._h = z_mesure[3]-z_mesure[0]
         self._profondeur_mesure = z_mesure
         self._dh = delta_z
@@ -37,6 +39,7 @@ class Column:
         self._sigma_temp = sigma_temp
         self._rho_w = 1000
         self._c_w = 4180
+        self.grad_H = None
         self.distribution = None # [(k,lambda_s,n)]
         self.run_mcmc = False
 
@@ -88,16 +91,19 @@ class Column:
         for j in range(len(self._t_mesure)):    
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
+        self.grad_H = np.asarray(delta_H)
         return np.asarray(delta_H)
 
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
         K= param[0]
         lbds = param[1]
         n = param[2] ##normal ?
-        pmcm = param[3]
+        pscs = param[3]
 
         dz = self._h/nb_cel
         lbdm = (n*np.sqrt(0.6)+(1-n)*np.sqrt(lbds))**2
+
+        pmcm = n*self._rho_w*self._c_w + (1-n)*pscs
 
 
         list_temp = [[] for i in range(len(self._t_mesure))]
@@ -154,15 +160,15 @@ class Column:
         return list_temp
 
     def solve_transi(self, param: dict, alpha=0.7):
-        K = 10**(-param['K'])
-        lbds = param['lambda_S']
+        K = 10**(-param['moinslog10K'])
+        lbds = param['lambda_s']
         n = param['n']
-        pmcm = param['Rho_m_C_m']
+        pscs = param['rhos_cs ']
         nb_cel = param['nb_cel']
 
         delta_H = self.solve_hydro((K,n),nb_cel)
 
-        res_temp= self.solve_thermique((K,lbds,n,pmcm),nb_cel,delta_H)
+        res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
 
         return res_temp,delta_H
 
@@ -297,7 +303,7 @@ class Column:
 
     #@mcmc_needed
     def sample_param(self):
-        a = np.random.randint(0, len(self.distrib_a_posteriori))
+        a = np.random.randint(0, len(self.distrib_a_posteriori)-1)
         sampled_param = self.distrib_a_posteriori[a] #vérifier la forme de distrib
         return sampled_param
 
@@ -322,43 +328,3 @@ class Column:
 
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
-
-    def get_flows_solve(self):
-        
-
-
-
-"""
-    #@mcmc_needed
-    def sample_param(self):
-    #Tire un tuple de param au hasard parmis
-    # #ceux retenus avec la mcmc
-        return param
-
-    #@mcmc_needed
-    def get_best_params(self):
-        return best_param
-
-    #@mcmc_needed
-    def get_all_params(self):
-        return params
-
-    #@mcmc_needed
-    def get_all_moinslog10K(self):
-        return moinslog10K_list 
-
-    #@mcmc_needed
-    def get_all_n(self):
-        return n_list
-
-    #@mcmc_needed
-    def get_all_lambda_s(self):
-        return lambda_s_list
-
-    #@mcmc_needed
-    def get_all_energy(self):
-        return energy_list
-
-    #@mcmc_needed
-    def get_all_acceptance_ratio(self):
-        return acceptance_ratio_list"""
