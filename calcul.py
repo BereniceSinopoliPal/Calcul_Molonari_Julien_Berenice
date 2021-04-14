@@ -16,7 +16,6 @@ priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
     "lambda_s": ...,
-    "sigma_obs":...,
     "rho_s":...,
     "c_s":...
 }
@@ -165,19 +164,23 @@ class Column:
 
         return res_temp,delta_H
 
-    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
+    def mcmc(self, priors: dict, sigma_obs:float, nb_iter: int, nb_cel: int, alpha: float):
 
         self.run_mcmc = True 
 
-        def pi(T_mesure, T_calcul, sigma_obs):
+        def pi(T_mesure, T_calcul, param, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return ((1/sigma_obs**6)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
+            rhos_cs = param[3]
+            fy = densite_rhos_cs(rhos_cs)
+            return ((1/sigma_obs**6)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)*fy)
 
-        def compute_energy(T_mesure, T_calcul, sigma_obs):
+        def compute_energy(T_mesure, T_calcul, param, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return (-np.log((1/sigma_obs**6))*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+            rhos_cs = param[3]
+            fy = densite_rhos_cs(rhos_cs)
+            return (-np.log((1/sigma_obs**6))*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2 + np.log(fy))
 
         def perturbation(borne_inf, borne_sup, previous_value, sigma):
             new_value = np.random.normal(previous_value, sigma)
@@ -187,37 +190,39 @@ class Column:
                 new_value = borne_sup - (borne_inf - new_value)
             return new_value
 
+        def densite_rhos_cs(x, cs1=priors['c_s'][0][0], cs2=priors['c_s'][0][1], rho1=priors['rho_s'][0][0], rho2=priors['rho_s'][0][1]):
+            if x < rho1*cs1 or x > rho2*cs2:
+                return 0
+            else:
+                return (np.log(rho2*cs2/(rho1*cs1)) - abs(np.log(rho2*cs1/x)) - abs(np.log(rho1*cs2/x)))/(2*(rho2-rho1)*(cs2-cs1))
+
+
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
         k_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
         lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
         n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
-        sigma_obs_0 = np.random.uniform(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1])
         rho_s_0 = np.random.uniform(priors['rho_s'][0][0], priors['rho_s'][0][1])
         c_s_0 = np.random.uniform(priors['c_s'][0][0], priors['c_s'][0][1])
-        
-        rhom_cm_0 = n_0*self._rho_w*self._c_w + (1-n_0)*rho_s_0*c_s_0
 
+        rhos_cs_0 = rho_s_0*c_s_0
+        param_0 = (k_0, lambda_s_0, n_0, rhos_cs_0)
 
         dict_params = {
             "moinslog10K": k_0,
             "lambda_s": lambda_s_0,
             "n": n_0,
-            "rhos" : rhom_cm_0,
-            "cs": c_s_0,
+            "rhos_cs": rhos_cs_0,
             "nb_cel": nb_cel
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], sigma_obs_0)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in [0,33,66,99]], param_0, sigma_obs)
 
 
         #Initialisation des tableaux de valeurs 
         
-        params = [(k_0, lambda_s_0, n_0, rho_s_0, c_s_0)] #Distribution a posteriori des paramètres (k, lambda_s, n, sigma_obs, rhom_cm)
-
-        sigma_obs_distrib = [sigma_obs_0]
-
+        params = [param_0] #Distribution a posteriori des paramètres (k, lambda_s, n, rho_s, c_s)
         energie = [energie_init]
         profils_temp = [T_mesure_0] #Profils de température
         proba_acceptation = [] #Probabilité acceptation à chaque itération
@@ -231,22 +236,22 @@ class Column:
             n_new = perturbation(priors['n'][0][0], priors['n'][0][1], params[-1][2], priors['n'][1])
             rho_s_new = perturbation(priors['rho_s'][0][0], priors['rho_s'][0][1], params[-1][3], priors['rho_s'][1])
             c_s_new = perturbation(priors['c_s'][0][0], priors['c_s'][0][1], params[-1][4], priors['c_s'][1])
-            sigma_obs_new  = perturbation(priors['sigma_obs'][0][0], priors['sigma_obs'][0][1], sigma_obs_distrib[-1], priors['sigma_obs'][1])
+            rhos_cs_new = rho_s_new*c_s_new
+            param_new = (moinslog10K_new, lambda_s_new, n_new, rhos_cs_new)
 
             #Résolution du régime transitoire
             dict_params["moinslog10K"] = moinslog10K_new,
             dict_params["lambda_s"] = lambda_s_new,
             dict_params["n"] = n_new
-            dict_params["rhos"] = rho_s_new
-            dict_params["cs"] = c_s_new
+            dict_params["rhos_cs"] = rhos_cs_new
             dict_params["nb_cel"] = nb_cel
             
 
             T_res,*reste = self.solve_transi(dict_params) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], sigma_obs_distrib[-1])
-            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], sigma_obs_new)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in [0,33,66,99]], params[-1], sigma_obs)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, sigma_obs)
             
 
             if piX > 0:
@@ -256,10 +261,9 @@ class Column:
 
             #Acceptation ou non
             if np.random.uniform(0,1) < alpha: #si le candidat est accepté
-                params.append((moinslog10K_new, lambda_s_new, n_new, rho_s_new, c_s_new))
-                sigma_obs_distrib.append(sigma_obs_new)
+                params.append(param_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], sigma_obs_new))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in [0,33,66,99]], param_new, sigma_obs))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
@@ -271,7 +275,6 @@ class Column:
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
         self.distrib_a_posteriori = params
-        self.sigma_obs_distrib = sigma_obs_distrib
         self.energie = energie
         self.moy_acceptation = moy_acceptation
 
@@ -307,11 +310,8 @@ class Column:
     def get_all_lambda_n(self):
         return np.asarray(zip(*self.distrib_a_posteriori[2]))
 
-    def get_all_rho_s(self):
+    def get_all_rhos_cs(self):
         return np.asarray(zip(*self.distrib_a_posteriori[3]))
-
-    def get_all_c_s(self):
-        return np.asarray(zip(*self.distrib_a_posteriori[4]))
 
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
