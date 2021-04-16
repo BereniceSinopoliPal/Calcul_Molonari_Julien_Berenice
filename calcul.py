@@ -298,6 +298,7 @@ class Column:
         self.distrib_a_posteriori = params
         self.energie = energie
         self.moy_acceptation = moy_acceptation
+        self.proba_acceptation = proba_acceptation
 
         #Calcul des quantiles pour les paramètres
         self.param_quantile =  np.quantile(self.distrib_a_posteriori, quantile, axis=0)
