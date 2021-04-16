@@ -47,8 +47,10 @@ class Column:
         self.distrib_a_posteriori = None
         self.energie = None
         self.moy_acceptation = None
-        self.profils_temp = None
+        #self.profils_temp = None #à supprimer si on ne stocke pas tous les profils de température
         self.run_mcmc = False
+        self.profil_temp_quantile = None
+        self.param_quantile = None
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -101,7 +103,7 @@ class Column:
         self.grad_H = np.asarray(delta_H)
         return np.asarray(delta_H)
 
-    def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
+    def solve_thermique(self, param: tuple, nb_cel: int, grad_h, quantile, alpha=0.7):
         K= param[0]
         lbds = param[1]
         n = param[2] ##normal ?
@@ -294,7 +296,18 @@ class Column:
         self.distrib_a_posteriori = params
         self.energie = energie
         self.moy_acceptation = moy_acceptation
-        self.profils_temp = profils_temp
+
+        #Calcul des quantiles pour les paramètres
+        self.param_quantile =  np.quantile(self.distrib_a_posteriori, quantile, axis=0)
+
+        #Calcul des quantiles pour les températures
+        temp_zip = list(zip(*profils_temp))
+        self.profil_temp_quantile = np.quantile(temp_zip, quantile, axis=1)
+
+        #On réinitialise le tableau des profils de température pour ne pas le stocker en mémoire
+        profils_temp = []
+
+
 
         """
         k_param = [params[i][0] for i in range(len(params))]
@@ -305,7 +318,6 @@ class Column:
     #pour recup les choses liées à la mcmc
     #la liste est vouée à évoluer.
 
-    #@mcmc_needed
     def sample_param(self):
         a = np.random.randint(0, len(self.distrib_a_posteriori))
         sampled_param = self.distrib_a_posteriori[a] #vérifier la forme de distrib
@@ -333,15 +345,21 @@ class Column:
     def get_all_acceptance_ratio(self):
         return np.asarray(self.moy_acceptation)
 
-    def get_temps_quantile(self, quantile): 
-        temp_zip = list(zip(*self.profils_temp))
-        profil_quantile = np.quantile(temp_zip, quantile, axis=1)
-        return profil_quantile 
+    def get_temps_quantile(self): 
+        return self.profil_temp_quantile
 
-    def get_quantile_param(self, quantile):
-        return np.quantile(self.distrib_a_posteriori, quantile, axis=0)
+    def get_moinslog10K_quantile(self):
+        return self.param_quantile[0]
 
-    #def get_flow_quantile(self, quantile):
+    def get_lambda_quantile(self):
+        return self.param_quantile[1]
+    
+    def get_n_quantile(self):
+        return self.param_quantile[2]
+    
+    def get_rhoscs_quantile(self):
+        return self.param_quantile[3]
+
 
 
         
