@@ -8,4 +8,5 @@ c = [[8, 80, 800], [41, 41, 401], [55, 505, 5500], [5,5,5]]
 
 
 
-print(np.quantile([a,b,c], 0.95, axis=0))
+print(np.quantile([a,b,c], 0.95, axis=1))
+
