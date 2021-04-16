@@ -42,6 +42,11 @@ class Column:
         self.grad_H = None
         self.distribution = None # [(k,lambda_s,n)]
         self.run_mcmc = False
+        
+        self.distrib_a_posteriori = None
+        self.energie = None
+        self.moy_acceptation = None
+        self.profils_temp = None
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
