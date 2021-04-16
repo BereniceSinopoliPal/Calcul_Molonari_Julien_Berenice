@@ -56,10 +56,10 @@ class Column:
         Ss = n/self._h
 
         list_P = [[] for i in range(len(self._t_mesure))]
-        list_P[0] = np.linspace(self._dH[0],0,nb_cel)
+        list_P[0] = np.linspace(self._dH[0][1][0],0,nb_cel)
 
         for j in range(1, len(self._t_mesure)):
-            dt = self._t_mesure[j] - self._t_mesure[j-1]
+            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
             A = np.zeros((nb_cel, nb_cel))
             B = np.zeros((nb_cel, nb_cel))
             A[0][0] = 1
@@ -88,7 +88,7 @@ class Column:
                 B[i][i+1] = -K*(1-alpha)/dz**2
             
             C = B @ list_P[j-1]
-            C[0], C[nb_cel-1] = self._dH[j],0
+            C[0], C[nb_cel-1] = self._dH[j][1][0],0
 
             res = np.linalg.solve(A, C)
             list_P[j] = res
@@ -99,7 +99,7 @@ class Column:
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
         self.grad_H.append(np.asarray(delta_H))
         return np.asarray(delta_H)
-
+    
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
         K= param[0]
         lbds = param[1]
@@ -114,8 +114,8 @@ class Column:
 
         list_temp = [[] for i in range(len(self._t_mesure))]
 
-        coef = lagrange(self._profondeur_mesure,self._T_mesure[0])
-        profondeur = np.linspace(0.1,0.4,nb_cel)
+        coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0])
+        profondeur = np.linspace([0],self._profondeur_mesure[-1],nb_cel)
         profondeur_inter = coef(profondeur)
         list_temp[0] = profondeur_inter
 
@@ -123,7 +123,7 @@ class Column:
         ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
 
         for j in range(1, len(self._t_mesure)):
-            dt = self._t_mesure[j] - self._t_mesure[j-1]
+            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
             delta_H= grad_h[j]
             A=np.zeros((nb_cel,nb_cel))
             B=np.zeros((nb_cel,nb_cel))
@@ -158,7 +158,7 @@ class Column:
                 B[i][i]=-(1-alpha)*(-2*ke/dz**2) - 1/dt
                 B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
             C = B @ list_temp[j-1]
-            C[0],C[nb_cel-1]= self._T_mesure[j][0],self._T_mesure[j][-1]
+            C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
         list_temp=np.asarray(list_temp)
@@ -175,8 +175,8 @@ class Column:
         delta_H = self.solve_hydro((K,n),nb_cel)
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
-        self.res_T.append(res_temp)
 
+        self.res_T.append(res_temp)
         return res_temp,delta_H
 
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int):
@@ -211,7 +211,7 @@ class Column:
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
         indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteurs[1:4]
+        indice_capteurs_interieur = indice_capteurs[0:3]
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
@@ -228,7 +228,7 @@ class Column:
             "rhos_cs": rhos_cs_0,
             "nb_cel": nb_cel
         }
-        
+        indice_capteurs_interieur = [int(i) for i in indice_capteurs_interieur]
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
         energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
 
