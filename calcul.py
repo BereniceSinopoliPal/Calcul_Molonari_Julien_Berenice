@@ -2,6 +2,7 @@ import numpy as np
 from scipy.interpolate import lagrange
 import matplotlib.pyplot as plt
 import random as rd
+from tqdm import tqdm
 
 col_dict = {
     "river_bed": 1, ##hauteur de la rivière en m
@@ -12,7 +13,6 @@ col_dict = {
     "sigma_meas_P": .4, #incertitude sur la pression
     "sigma_meas_T" : [3., 2., 4., 3.]
 }
-
 priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
@@ -25,6 +25,7 @@ class Column:
     @classmethod
     def from_dict(cls, col_dict):
         return cls(**col_dict)
+
     def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
         self._dH = dH_measures
         self._T_mesure = temp_measure
@@ -39,7 +40,6 @@ class Column:
         self.res_T = []
         self.run_mcmc = False
         self._t_mesure = []
-
         for i in range(len(self._dH)):
             self._t_mesure.append(self._dH[i][0])
         
@@ -103,7 +103,7 @@ class Column:
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
         K= param[0]
         lbds = param[1]
-        n = param[2] ##normal ?
+        n = param[2]
         pscs = param[3]
 
         dz = self._h/nb_cel
@@ -180,9 +180,7 @@ class Column:
         return res_temp,delta_H
 
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int):
-
         self.run_mcmc = True 
-
         def pi(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
@@ -242,7 +240,7 @@ class Column:
         proba_acceptation = [] #Probabilité acceptation à chaque itération
         moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
             
-        for i in range(nb_iter):
+        for i in tqdm(range(nb_iter)):
             #Génération d'un état candidat
 
             moinslog10K_new = perturbation(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1],params[-1][0], priors['moinslog10K'][1])
