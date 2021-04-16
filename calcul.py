@@ -6,9 +6,9 @@ import random as rd
 col_dict = {
     "river_bed": 1, ##hauteur de la rivière en m
     "offset" : 0.05,#décalage
-    "depth_sensors": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
-    "dH_measures": None,#[datetime,[P,T]]
-    "temp_measure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
+    "depth_sensores": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
+    "dH_mesures": list, # Decalage de profondeur des capteurs
+    "temp_mesure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
     "sigma_meas_P": .4, #incertitude sur la pression
     "sigma_meas_T" : [3., 2., 4., 3.]
 }
@@ -26,29 +26,27 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
-        self._dH = dH_measures
-        self._T_mesure = temp_measure
-        self._h = depth_sensors[-1]
-        self._profondeur_mesure = depth_sensors
-        self._dh = offset
-        self._sigma_p = sigma_meas_P
-        self._sigma_temp = sigma_meas_T
+    def __init__(self, river_bed,z_mesure, delta_z, mesure_capteur_P, temp_mesure, sigma_p, sigma_temp):
+        self._dH = mesure_capteur_P
+        self._T_mesure = temp_mesure
+        self._t_mesure = []
+        self._h = z_mesure[3]-z_mesure[0]
+        self._profondeur_mesure = z_mesure
+        self._dh = delta_z
+        #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
+        #self._t_mesure = t_mesure
+        self._sigma_p = sigma_p
+        self._sigma_temp = sigma_temp
         self._rho_w = 1000
         self._c_w = 4180
-        self.grad_H = []
-        self.res_T = []
+        self.grad_H = None
+        self.distribution = None # [(k,lambda_s,n)]
         self.run_mcmc = False
-        self._t_mesure = []
-
-        for i in range(len(self._dH)):
-            self._t_mesure.append(self._dH[i][0])
         
         self.distrib_a_posteriori = None
         self.energie = None
         self.moy_acceptation = None
         self.profils_temp = None
-        self.run_mcmc = False
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -57,10 +55,10 @@ class Column:
         Ss = n/self._h
 
         list_P = [[] for i in range(len(self._t_mesure))]
-        list_P[0] = np.linspace(self._dH[0][1][0],0,nb_cel)
+        list_P[0] = np.linspace(self._dH[0],0,nb_cel)
 
         for j in range(1, len(self._t_mesure)):
-            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
+            dt = self._t_mesure[j] - self._t_mesure[j-1]
             A = np.zeros((nb_cel, nb_cel))
             B = np.zeros((nb_cel, nb_cel))
             A[0][0] = 1
@@ -89,7 +87,7 @@ class Column:
                 B[i][i+1] = -K*(1-alpha)/dz**2
             
             C = B @ list_P[j-1]
-            C[0], C[nb_cel-1] = self._dH[j][1][0],0
+            C[0], C[nb_cel-1] = self._dH[j],0
 
             res = np.linalg.solve(A, C)
             list_P[j] = res
@@ -98,7 +96,7 @@ class Column:
         for j in range(len(self._t_mesure)):    
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
-        self.grad_H.append(np.asarray(delta_H))
+        self.grad_H = np.asarray(delta_H)
         return np.asarray(delta_H)
 
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -115,8 +113,8 @@ class Column:
 
         list_temp = [[] for i in range(len(self._t_mesure))]
 
-        coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0])
-        profondeur = np.linspace([0],self._profondeur_mesure[-1],nb_cel)
+        coef = lagrange(self._profondeur_mesure,self._T_mesure[0])
+        profondeur = np.linspace(0.1,0.4,nb_cel)
         profondeur_inter = coef(profondeur)
         list_temp[0] = profondeur_inter
 
@@ -124,7 +122,7 @@ class Column:
         ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
 
         for j in range(1, len(self._t_mesure)):
-            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
+            dt = self._t_mesure[j] - self._t_mesure[j-1]
             delta_H= grad_h[j]
             A=np.zeros((nb_cel,nb_cel))
             B=np.zeros((nb_cel,nb_cel))
@@ -159,7 +157,7 @@ class Column:
                 B[i][i]=-(1-alpha)*(-2*ke/dz**2) - 1/dt
                 B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
             C = B @ list_temp[j-1]
-            C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][-1]
+            C[0],C[nb_cel-1]= self._T_mesure[j][0],self._T_mesure[j][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
         list_temp=np.asarray(list_temp)
@@ -170,17 +168,16 @@ class Column:
         K = 10**(-param['moinslog10K'])
         lbds = param['lambda_s']
         n = param['n']
-        pscs = param['rhos_cs']
+        pscs = param['rhos_cs ']
         nb_cel = param['nb_cel']
 
         delta_H = self.solve_hydro((K,n),nb_cel)
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
 
-        self.res_T.append(res_temp)
         return res_temp,delta_H
 
-    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha=):
 
         self.run_mcmc = True 
 
@@ -216,17 +213,14 @@ class Column:
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
         indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteurs[0:3]
+        indice_capteurs_interieur = indice_capteurs[1:4]
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
         moinslog10K_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
         lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
         n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
-        rho_s_0 = np.random.uniform(priors['rho_s'][0][0], priors['rho_s'][0][1])
-        c_s_0 = np.random.uniform(priors['c_s'][0][0], priors['c_s'][0][1])
-
-        rhos_cs_0 = rho_s_0*c_s_0
+        rho_s_cs_0 = np.random.uniform(priors['rho_s'][0][0], priors['rho_s'][0][1])
         param_0 = (moinslog10K_0, lambda_s_0, n_0, rhos_cs_0)
 
         dict_params_0 = {
@@ -238,7 +232,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,int(i)] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -256,9 +250,7 @@ class Column:
             moinslog10K_new = perturbation(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1],params[-1][0], priors['moinslog10K'][1])
             lambda_s_new = perturbation(priors['lambda_s'][0][0], priors['lambda_s'][0][1],params[-1][1], priors['lambda_s'][1])
             n_new = perturbation(priors['n'][0][0], priors['n'][0][1], params[-1][2], priors['n'][1])
-            rho_s_new = perturbation(priors['rho_s'][0][0], priors['rho_s'][0][1], params[-1][3], priors['rho_s'][1])
-            c_s_new = perturbation(priors['c_s'][0][0], priors['c_s'][0][1], params[-1][4], priors['c_s'][1])
-            rhos_cs_new = rho_s_new*c_s_new
+            rhos_cs_new = perturbation(priors['rhos_cs'][0][0], priors['rhos_cs'][0][1], params[-1][3], priors['rhos_cs'][1])
             param_new = (moinslog10K_new, lambda_s_new, n_new, rhos_cs_new)
 
             #Résolution du régime transitoire
@@ -346,7 +338,7 @@ class Column:
     def get_temps_quantile(self, quantile): 
         temp_zip = list(zip(*self.profils_temp))
         profil_quantile = np.quantile(temp_zip, quantile, axis=1)
-        return profil_quantile # tableau avec une colonne par pas de temps mais on pourrait aussi prendre la transposée ? a voir
+        return profil_quantile 
 
     def get_quantile_param(self, quantile):
         return np.quantile(self.distrib_a_posteriori, quantile, axis=0)
