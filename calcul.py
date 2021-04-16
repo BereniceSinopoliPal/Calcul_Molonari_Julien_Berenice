@@ -181,7 +181,7 @@ class Column:
         self.res_T.append(res_temp)
         return res_temp,delta_H
 
-    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int):
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, quantile):
         self.run_mcmc = True 
         def pi(T_mesure, T_calcul, sigma_obs):
             
@@ -299,6 +299,7 @@ class Column:
         self.distrib_a_posteriori = params
         self.energie = energie
         self.moy_acceptation = moy_acceptation
+        self.proba_acceptation = proba_acceptation
 
         #Calcul des quantiles pour les paramètres
         self.param_quantile =  np.quantile(self.distrib_a_posteriori, quantile, axis=0)
