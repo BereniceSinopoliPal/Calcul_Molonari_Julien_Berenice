@@ -50,6 +50,9 @@ class Column:
         self.run_mcmc = False
         self.profil_temp_quantile = None
         self.param_quantile = None
+        self.debit_quantile = None
+        self.flux_adv_quantile = None
+        self.flux_cond_quantile =None 
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -232,8 +235,12 @@ class Column:
             "rhos_cs": rhos_cs_0,
             "nb_cel": nb_cel
         }
+
         indice_capteurs_interieur = [int(i) for i in indice_capteurs_interieur]
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
+        debit_0 = self.get_flows_solve(self)
+        advec_flow_0 = self.get_advec_flows_solve(self)
+        cond_flow_0 = self.get_conduc_flows_solve(self)
         energie_init = compute_energy(self._T_mesure_int, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
 
 
@@ -243,6 +250,9 @@ class Column:
         all_dict_params = [dict_params_0]
         energie = [energie_init]
         profils_temp = [T_mesure_0] #Profils de température
+        debits = [debit_0]
+        flux_adv = [advec_flow_0]
+        flux_cond = [cond_flow_0]
         proba_acceptation = [] #Probabilité acceptation à chaque itération
         moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
             
@@ -286,6 +296,9 @@ class Column:
                 energie.append(compute_energy(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+                debits.append(self.get_flows_solve(self))
+                flux_adv.append(self.get_advec_flows_solve(self))
+                flux_cond.append(self.get_conduc_flows_solve(self))
 
             else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
                 params.append(params[-1])
@@ -294,6 +307,10 @@ class Column:
                 energie.append(energie[-1])
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
+                
+                debits.append(debits[-1])
+                flux_adv.append(flux_adv[-1])
+                flux_cond.append(flux_adv[-1])
 
         self.distrib_a_posteriori = params
         self.energie = energie
@@ -304,18 +321,19 @@ class Column:
         self.param_quantile =  np.quantile(self.distrib_a_posteriori, quantile, axis=0)
 
         #Calcul des quantiles pour les températures
-        temp_zip = list(zip(*profils_temp))
-        self.profil_temp_quantile = np.quantile(temp_zip, quantile, axis=1)
+        self.profil_temp_quantile = np.quantile(profils_temp, quantile, axis=0)
+
+        #Calcul des quantiles pour le débit 
+
+        self.debit_quantile = np.quantile(debits, quantile)
+
+        #Calcul des quantiles pour les flux thermiques
+        self.flux_adv_quantile = np.quantile(flux_adv, quantile, axis=0)
+        self.flux_cond_quantile = np.quantile(flux_cond, quantile, axis=0)
 
         #On réinitialise le tableau des profils de température pour ne pas le stocker en mémoire
         profils_temp = []
-
-
-
-        """
-        k_param = [params[i][0] for i in range(len(params))]
-        plt.hist(k_param, bins=20)
-        plt.show()"""
+    
     
     #Ici la list les méthodes (non exhaustives)
     #pour recup les choses liées à la mcmc
@@ -362,6 +380,12 @@ class Column:
     
     def get_rhoscs_quantile(self):
         return self.param_quantile[3]
+
+    def get_times_mcmc(self):
+        return self._T_mesure[:,1]
+
+    def get_depths_mcmc(self):
+        return self._profondeur_mesure
 
 
 
