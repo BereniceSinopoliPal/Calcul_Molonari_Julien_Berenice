@@ -25,8 +25,7 @@ class Column:
     @classmethod
     def from_dict(cls, col_dict):
         return cls(**col_dict)
-
-   def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
+    def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
         self._dH = dH_measures
         self._T_mesure = temp_measure
         self._h = depth_sensors[-1]
@@ -98,7 +97,7 @@ class Column:
         for j in range(len(self._t_mesure)):    
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
-        self.grad_H = np.asarray(delta_H)
+        self.grad_H.append(np.asarray(delta_H))
         return np.asarray(delta_H)
 
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -170,16 +169,17 @@ class Column:
         K = 10**(-param['moinslog10K'])
         lbds = param['lambda_s']
         n = param['n']
-        pscs = param['rhos_cs ']
+        pscs = param['rhos_cs']
         nb_cel = param['nb_cel']
 
         delta_H = self.solve_hydro((K,n),nb_cel)
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
+        self.res_T.append(res_temp)
 
         return res_temp,delta_H
 
-    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha=):
+    def mcmc(self, priors: dict, nb_iter: int, nb_cel: int):
 
         self.run_mcmc = True 
 
@@ -201,11 +201,11 @@ class Column:
                 new_value = borne_sup - (borne_inf - new_value)
             return new_value
 
-        def densite_rhos_cs(x, cs1=priors['c_s'][0][0], cs2=priors['c_s'][0][1], rho1=priors['rho_s'][0][0], rho2=priors['rho_s'][0][1]):
-            if x < rho1*cs1 or x > rho2*cs2:
-                return 0
-            else:
-                return (np.log(rho2*cs2/(rho1*cs1)) - abs(np.log(rho2*cs1/x)) - abs(np.log(rho1*cs2/x)))/(2*(rho2-rho1)*(cs2-cs1))
+       # def densite_rhos_cs(x, cs1=priors['c_s'][0][0], cs2=priors['c_s'][0][1], rho1=priors['rho_s'][0][0], rho2=priors['rho_s'][0][1]):
+       #     if x < rho1*cs1 or x > rho2*cs2:
+       #         return 0
+       #     else:
+       #         return (np.log(rho2*cs2/(rho1*cs1)) - abs(np.log(rho2*cs1/x)) - abs(np.log(rho1*cs2/x)))/(2*(rho2-rho1)*(cs2-cs1))
 
 
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
