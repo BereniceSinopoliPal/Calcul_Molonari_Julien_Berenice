@@ -26,27 +26,29 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, river_bed,z_mesure, delta_z, mesure_capteur_P, temp_mesure, sigma_p, sigma_temp):
-        self._dH = mesure_capteur_P
-        self._T_mesure = temp_mesure
-        self._t_mesure = []
-        self._h = z_mesure[3]-z_mesure[0]
-        self._profondeur_mesure = z_mesure
-        self._dh = delta_z
-        #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
-        #self._t_mesure = t_mesure
-        self._sigma_p = sigma_p
-        self._sigma_temp = sigma_temp
+   def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
+        self._dH = dH_measures
+        self._T_mesure = temp_measure
+        self._h = depth_sensors[-1]
+        self._profondeur_mesure = depth_sensors
+        self._dh = offset
+        self._sigma_p = sigma_meas_P
+        self._sigma_temp = sigma_meas_T
         self._rho_w = 1000
         self._c_w = 4180
-        self.grad_H = None
-        self.distribution = None # [(k,lambda_s,n)]
+        self.grad_H = []
+        self.res_T = []
         self.run_mcmc = False
+        self._t_mesure = []
+
+        for i in range(len(self._dH)):
+            self._t_mesure.append(self._dH[i][0])
         
         self.distrib_a_posteriori = None
         self.energie = None
         self.moy_acceptation = None
         self.profils_temp = None
+        self.run_mcmc = False
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
