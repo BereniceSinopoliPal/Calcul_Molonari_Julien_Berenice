@@ -271,10 +271,11 @@ class Column:
             #Calcul de la probabilité d'acceptation
             piX = pi(self._T_mesure_int, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
             piY = pi(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
-            
+            print(alpha)
 
             if piX > 0:
                 alpha = min(1, piY/piX)
+                print(alpha)
             else :
                 alpha = 1
 
