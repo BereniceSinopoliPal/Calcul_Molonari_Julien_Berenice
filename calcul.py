@@ -40,9 +40,10 @@ class Column:
         self.res_T = []
         self.run_mcmc = False
         self._t_mesure = [i[0] for i in self._dH]
-        self._T_mesure_int = [i[1][0:3] for i in self._T_mesure]
+        self._T_mesure_int = [i[1][0:3] for i in T_measures]
 
-        
+
+        self.debit = []        
         self.distrib_a_posteriori = None
         self.energie = None
         self.moy_acceptation = None
@@ -50,6 +51,8 @@ class Column:
         self.run_mcmc = False
         self.profil_temp_quantile = None
         self.param_quantile = None
+        self.advec_flows = []
+        self.conduc_flows = []
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -100,6 +103,7 @@ class Column:
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
         self.grad_H.append(np.asarray(delta_H))
+        self.debit.append([-K*i[0] for i in self.grad_H[-1] ])
         return np.asarray(delta_H)
     
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -114,12 +118,13 @@ class Column:
         pmcm = n*self._rho_w*self._c_w + (1-n)*pscs
 
 
-        list_temp = [[] for i in range(len(self._t_mesure))]
+        list_temp = []
 
         coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0][1])
         profondeur = np.linspace([0],self._profondeur_mesure[-1],nb_cel)
         profondeur_inter = coef(profondeur)
-        list_temp[0] = profondeur_inter
+        profondeur_inter = np.array([i[0] for i in profondeur_inter])
+        list_temp.append(profondeur_inter)
 
         ke = lbdm/pmcm##lbm/pmcm
         ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
@@ -161,11 +166,11 @@ class Column:
                 B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
             C = B @ list_temp[j-1]
             C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][1][-1]
-            res = np.linalg.solve(A,C)
-            list_temp[j]=res
-        list_temp=np.asarray(list_temp)
             
-        return list_temp
+            res = np.linalg.solve(A,C)
+            list_temp.append(res)
+            
+        return np.asarray(list_temp)
 
     def solve_transi(self, param: dict, alpha=0.7):
         K = 10**(-param['moinslog10K'])
@@ -173,10 +178,22 @@ class Column:
         n = param['n']
         pscs = param['rhos_cs']
         nb_cel = param['nb_cel']
+        lbdm = (n*np.sqrt(0.6)+(1-n)*np.sqrt(lbds))**2
 
         delta_H = self.solve_hydro((K,n),nb_cel)
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
+
+        def grad_t(resultat):
+            Grad_compute=[]
+            for i in resultat:
+                inter = []        
+                for j in range(len(i)-1):
+                    inter.append(-(i[j+1]-i[j])/0.1)
+                Grad_compute.append(inter)
+            return np.asarray(Grad_compute)
+        self.advec_flows.append(self._rho_w*self._c_w*delta_H*res_temp[:,:-1])
+        self.conduc_flows.append(lbdm*grad_t(res_temp))
 
         self.res_T.append(res_temp)
         return res_temp,delta_H
@@ -186,15 +203,12 @@ class Column:
         def pi(T_mesure, T_calcul, sigma_obs):
             
             T_mesure = np.array(T_mesure)
-            T_calcul = np.array(T_calcul)
-
-            #print(T_mesure.shape)
-            #print(T_calcul.shape)
+            T_calcul = np.array(T_calcul).transpose()
             return (1/sigma_obs**5)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def compute_energy(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
-            T_calcul = np.array(T_calcul)
+            T_calcul = np.array(T_calcul).transpose()
             return (-np.log((1/sigma_obs**5)) + (0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def perturbation(borne_inf, borne_sup, previous_value, sigma):
@@ -271,21 +285,19 @@ class Column:
             #Calcul de la probabilité d'acceptation
             piX = pi(self._T_mesure_int, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
             piY = pi(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
-            print(alpha)
-
+            
             if piX > 0:
-                alpha = min(1, piY/piX)
-                print(alpha)
+                alpha_accept = min(1, piY/piX)
             else :
-                alpha = 1
+                alpha_accept = 1
 
             #Acceptation ou non
-            if np.random.uniform(0,1) < alpha: #si le candidat est accepté
+            if np.random.uniform(0,1) < alpha_accept: #si le candidat est accepté
                 params.append(param_new)
                 all_dict_params.append(dict_params_new)
                 profils_temp.append(T_res)
                 energie.append(compute_energy(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
-                proba_acceptation.append(alpha)
+                proba_acceptation.append(alpha_accept)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
             else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
@@ -293,7 +305,7 @@ class Column:
                 all_dict_params.append(all_dict_params[-1])
                 profils_temp.append(profils_temp[-1])
                 energie.append(energie[-1])
-                proba_acceptation.append(alpha)
+                proba_acceptation.append(alpha_accept)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
         self.distrib_a_posteriori = params
@@ -363,6 +375,14 @@ class Column:
     
     def get_rhoscs_quantile(self):
         return self.param_quantile[3]
+
+    def get_flows_solve(self):
+        return self.debit
+    def get_advec_flows_solve(self):
+        return self.advec_flows
+    def get_conduc_flows_solve(self):
+        return self.conduc_flows
+        
 
 
 
