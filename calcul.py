@@ -26,18 +26,18 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, river_bed, offset, depth_sensores,dH_mesures, temp_mesure, sigma_meas_P, sigma_meas_T):
-        self._dH = dH_mesures
-        self._T_mesure = temp_mesure
-        self._h = depth_sensores[-1]
-        self._profondeur_mesure = depth_sensores
+    def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
+        self._dH = dH_measures
+        self._T_mesure = temp_measure
+        self._h = depth_sensors[-1]
+        self._profondeur_mesure = depth_sensors
         self._dh = offset
-        #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
         self._sigma_p = sigma_meas_P
         self._sigma_temp = sigma_meas_T
         self._rho_w = 1000
         self._c_w = 4180
-        self.grad_H = None
+        self.grad_H = []
+        self.res_T = []
         self.run_mcmc = False
         self._t_mesure = []
 
@@ -48,6 +48,7 @@ class Column:
         self.energie = None
         self.moy_acceptation = None
         self.profils_temp = None
+        self.run_mcmc = False
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -97,7 +98,7 @@ class Column:
         for j in range(len(self._t_mesure)):    
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
-        self.grad_H = np.asarray(delta_H)
+        self.grad_H.append(np.asarray(delta_H))
         return np.asarray(delta_H)
 
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -176,6 +177,7 @@ class Column:
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
 
+        self.res_T.append(res_temp)
         return res_temp,delta_H
 
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, alpha: float):
@@ -214,7 +216,7 @@ class Column:
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
         indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteurs[1:4]
+        indice_capteurs_interieur = indice_capteurs[0:3]
 
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
@@ -236,7 +238,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,int(i)] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
