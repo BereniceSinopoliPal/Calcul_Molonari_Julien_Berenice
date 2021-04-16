@@ -17,7 +17,7 @@ priors = {
     "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
     "n": ...,
     "lambda_s": ...,
-    "rho_s":...,
+    "rhos_cs":...,
     "c_s":...
 }
 
@@ -183,19 +183,15 @@ class Column:
 
         self.run_mcmc = True 
 
-        def pi(T_mesure, T_calcul, param, sigma_obs):
+        def pi(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            rhos_cs = param[3]
-            fy = densite_rhos_cs(rhos_cs)
-            return ((1/sigma_obs**6)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)*fy)
+            return ((1/sigma_obs**6)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
 
-        def compute_energy(T_mesure, T_calcul, param, sigma_obs):
+        def compute_energy(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            rhos_cs = param[3]
-            fy = densite_rhos_cs(rhos_cs)
-            return (-np.log((1/sigma_obs**6))*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2 + np.log(fy))
+            return (-np.log((1/sigma_obs**6))*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def perturbation(borne_inf, borne_sup, previous_value, sigma):
             new_value = np.random.normal(previous_value, sigma)
@@ -222,7 +218,7 @@ class Column:
         moinslog10K_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
         lambda_s_0 = np.random.uniform(priors['lambda_s'][0][0], priors['lambda_s'][0][1])
         n_0 = np.random.uniform(priors['n'][0][0], priors['n'][0][1])
-        rho_s_cs_0 = np.random.uniform(priors['rho_s'][0][0], priors['rho_s'][0][1])
+        rhos_cs_0 = np.random.uniform(priors['rhos_cs'][0][0], priors['rhos_cs'][0][1])
         param_0 = (moinslog10K_0, lambda_s_0, n_0, rhos_cs_0)
 
         dict_params_0 = {
@@ -234,7 +230,7 @@ class Column:
         }
         
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], param_0, self._sigma_temp)
+        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -269,8 +265,8 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params_new) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], params[-1], self._sigma_temp)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], param_new, self._sigma_temp)
+            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
+            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
             
 
             if piX > 0:
@@ -283,7 +279,7 @@ class Column:
                 params.append(param_new)
                 all_dict_params.append(dict_params_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], param_new, self._sigma_temp))
+                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
