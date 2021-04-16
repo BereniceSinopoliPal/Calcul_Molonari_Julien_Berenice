@@ -6,9 +6,9 @@ import random as rd
 col_dict = {
     "river_bed": 1, ##hauteur de la rivière en m
     "offset" : 0.05,#décalage
-    "depth_sensores": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
-    "dH_mesures": list, # Decalage de profondeur des capteurs
-    "temp_mesure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
+    "depth_sensors": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
+    "dH_measures": None,#[datetime,[P,T]]
+    "temp_measure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
     "sigma_meas_P": .4, #incertitude sur la pression
     "sigma_meas_T" : [3., 2., 4., 3.]
 }
@@ -26,22 +26,25 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, river_bed,z_mesure, delta_z, mesure_capteur_P, temp_mesure, sigma_p, sigma_temp):
-        self._dH = mesure_capteur_P
+    def __init__(self, river_bed, offset, depth_sensores,dH_mesures, temp_mesure, sigma_meas_P, sigma_meas_T):
+        self._dH = dH_mesures
         self._T_mesure = temp_mesure
-        self._t_mesure = []
-        self._h = z_mesure[3]-z_mesure[0]
-        self._profondeur_mesure = z_mesure
-        self._dh = delta_z
+        self._h = depth_sensores[-1]
+        self._profondeur_mesure = depth_sensores
+        self._dh = offset
         #self._rhom_cm = 4e6 ###Provisoire à modifier plus tard avec le MCMC
-        self._t_mesure = t_mesure
-        self._sigma_p = sigma_p
-        self._sigma_temp = sigma_temp
+        self._sigma_p = sigma_meas_P
+        self._sigma_temp = sigma_meas_T
         self._rho_w = 1000
         self._c_w = 4180
+
         self.grad_H = None
         self.distribution = None # [(k,lambda_s,n)]
         self.run_mcmc = False
+        self._t_mesure = []
+
+        for i in range(len(self._dH)):
+            self._t_mesure.append(self._dH[i][0])
 
     def solve_hydro(self, param: tuple, nb_cel: int, alpha=0.7):
         K= param[0]
@@ -50,10 +53,10 @@ class Column:
         Ss = n/self._h
 
         list_P = [[] for i in range(len(self._t_mesure))]
-        list_P[0] = np.linspace(self._dH[0],0,nb_cel)
+        list_P[0] = np.linspace(self._dH[0][1][0],0,nb_cel)
 
         for j in range(1, len(self._t_mesure)):
-            dt = self._t_mesure[j] - self._t_mesure[j-1]
+            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
             A = np.zeros((nb_cel, nb_cel))
             B = np.zeros((nb_cel, nb_cel))
             A[0][0] = 1
@@ -82,7 +85,7 @@ class Column:
                 B[i][i+1] = -K*(1-alpha)/dz**2
             
             C = B @ list_P[j-1]
-            C[0], C[nb_cel-1] = self._dH[j],0
+            C[0], C[nb_cel-1] = self._dH[j][1][0],0
 
             res = np.linalg.solve(A, C)
             list_P[j] = res
@@ -108,8 +111,8 @@ class Column:
 
         list_temp = [[] for i in range(len(self._t_mesure))]
 
-        coef = lagrange(self._profondeur_mesure,self._T_mesure[0])
-        profondeur = np.linspace(0.1,0.4,nb_cel)
+        coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0])
+        profondeur = np.linspace([0],self._profondeur_mesure[-1],nb_cel)
         profondeur_inter = coef(profondeur)
         list_temp[0] = profondeur_inter
 
@@ -117,7 +120,7 @@ class Column:
         ae = K*(self._c_w*self._rho_w)/pmcm # K *pwcw/pmcm
 
         for j in range(1, len(self._t_mesure)):
-            dt = self._t_mesure[j] - self._t_mesure[j-1]
+            dt = (self._t_mesure[j] - self._t_mesure[j-1]).total_seconds()
             delta_H= grad_h[j]
             A=np.zeros((nb_cel,nb_cel))
             B=np.zeros((nb_cel,nb_cel))
@@ -152,7 +155,7 @@ class Column:
                 B[i][i]=-(1-alpha)*(-2*ke/dz**2) - 1/dt
                 B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
             C = B @ list_temp[j-1]
-            C[0],C[nb_cel-1]= self._T_mesure[j][0],self._T_mesure[j][-1]
+            C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
         list_temp=np.asarray(list_temp)
@@ -163,7 +166,7 @@ class Column:
         K = 10**(-param['moinslog10K'])
         lbds = param['lambda_s']
         n = param['n']
-        pscs = param['rhos_cs ']
+        pscs = param['rhos_cs']
         nb_cel = param['nb_cel']
 
         delta_H = self.solve_hydro((K,n),nb_cel)
