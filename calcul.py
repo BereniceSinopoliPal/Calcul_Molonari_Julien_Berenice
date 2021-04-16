@@ -26,9 +26,9 @@ class Column:
     def from_dict(cls, col_dict):
         return cls(**col_dict)
 
-    def __init__(self, river_bed, offset, depth_sensors,dH_measures, temp_measure, sigma_meas_P, sigma_meas_T):
+    def __init__(self, river_bed, offset, depth_sensors,dH_measures, T_measures, sigma_meas_P, sigma_meas_T):
         self._dH = dH_measures
-        self._T_mesure = temp_measure
+        self._T_mesure = T_measures
         self._h = depth_sensors[-1]
         self._profondeur_mesure = depth_sensors
         self._dh = offset
@@ -39,9 +39,9 @@ class Column:
         self.grad_H = []
         self.res_T = []
         self.run_mcmc = False
-        self._t_mesure = []
-        for i in range(len(self._dH)):
-            self._t_mesure.append(self._dH[i][0])
+        self._t_mesure = [i[0] for i in self._dH]
+        self._T_mesure_int = [i[1][0:3] for i in self._T_mesure]
+
         
         self.distrib_a_posteriori = None
         self.energie = None
@@ -114,7 +114,7 @@ class Column:
 
         list_temp = [[] for i in range(len(self._t_mesure))]
 
-        coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0])
+        coef = lagrange([0]+self._profondeur_mesure,[self._dH[0][1][1]]+self._T_mesure[0][1])
         profondeur = np.linspace([0],self._profondeur_mesure[-1],nb_cel)
         profondeur_inter = coef(profondeur)
         list_temp[0] = profondeur_inter
@@ -158,7 +158,7 @@ class Column:
                 B[i][i]=-(1-alpha)*(-2*ke/dz**2) - 1/dt
                 B[i][i+1]=-(1-alpha)*(ke/dz**2 + ae*delta_H[i]/(2*dz))
             C = B @ list_temp[j-1]
-            C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][-1]
+            C[0],C[nb_cel-1]= self._dH[j][1][1],self._T_mesure[j][1][-1]
             res = np.linalg.solve(A,C)
             list_temp[j]=res
         list_temp=np.asarray(list_temp)
@@ -182,14 +182,18 @@ class Column:
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int):
         self.run_mcmc = True 
         def pi(T_mesure, T_calcul, sigma_obs):
+            
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return ((1/sigma_obs**6)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
+
+            #print(T_mesure.shape)
+            #print(T_calcul.shape)
+            return (1/sigma_obs**5)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def compute_energy(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul)
-            return (-np.log((1/sigma_obs**6))*(-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+            return (-np.log((1/sigma_obs**5)) + (0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def perturbation(borne_inf, borne_sup, previous_value, sigma):
             new_value = np.random.normal(previous_value, sigma)
@@ -228,7 +232,7 @@ class Column:
         }
         indice_capteurs_interieur = [int(i) for i in indice_capteurs_interieur]
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
-        energie_init = compute_energy(self._T_mesure, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
+        energie_init = compute_energy(self._T_mesure_int, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
 
 
         #Initialisation des tableaux de valeurs 
@@ -263,8 +267,8 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params_new) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
-            piY = pi(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
+            piX = pi(self._T_mesure_int, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
+            piY = pi(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
             
 
             if piX > 0:
@@ -277,7 +281,7 @@ class Column:
                 params.append(param_new)
                 all_dict_params.append(dict_params_new)
                 profils_temp.append(T_res)
-                energie.append(compute_energy(self._T_mesure, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
+                energie.append(compute_energy(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
                 proba_acceptation.append(alpha)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
 
