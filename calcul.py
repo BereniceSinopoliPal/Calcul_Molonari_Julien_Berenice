@@ -345,8 +345,11 @@ class Column:
         self.flux_adv_quantile = np.quantile(flux_adv, quantile, axis=0)
         self.flux_cond_quantile = np.quantile(flux_cond, quantile, axis=0)
 
-        #On réinitialise le tableau des profils de température pour ne pas le stocker en mémoire
+        #On réinitialise le tableau des profils de température, du débit et des fluxs pour ne pas les stocker en mémoire
         profils_temp = []
+        debits = []
+        flux_adv = []
+        flux_cond = []
     
     
     #Ici la list les méthodes (non exhaustives)
