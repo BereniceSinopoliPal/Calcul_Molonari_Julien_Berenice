@@ -192,8 +192,8 @@ class Column:
             for i,j in enumerate(resultat[:-1]):
                 dt = (self._t_mesure[i+1] - self._t_mesure[i]).total_seconds()
                 inter = []        
-                for j in range(len(i)-1):
-                    inter.append(-(i[j+1]-i[j])/dt)
+                for p in range(len(j)-1):
+                    inter.append(-(j[p+1]-j[p])/dt)
                 Grad_compute.append(inter)
             return np.asarray(Grad_compute)
         self.advec_flows = self._rho_w*self._c_w*delta_H*res_temp[:,:-1]
