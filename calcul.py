@@ -51,8 +51,8 @@ class Column:
         self.run_mcmc = False
         self.profil_temp_quantile = None
         self.param_quantile = None
-        self.advec_flows = []
-        self.conduc_flows = []
+        self.advec_flows = None
+        self.conduc_flows = None
         self.debit_quantile = None
         self.flux_adv_quantile = None
         self.flux_cond_quantile =None 
@@ -106,7 +106,7 @@ class Column:
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
         self.grad_H.append(np.asarray(delta_H))
-        self.debit.append([-K*i[0] for i in self.grad_H[-1] ])
+        self.debit = [-K*i[0] for i in self.grad_H[-1] ]
         return np.asarray(delta_H)
     
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -196,8 +196,8 @@ class Column:
                     inter.append(-(i[j+1]-i[j])/dt)
                 Grad_compute.append(inter)
             return np.asarray(Grad_compute)
-        self.advec_flows.append(self._rho_w*self._c_w*delta_H*res_temp[:,:-1])
-        self.conduc_flows.append(lbdm*grad_t(res_temp))
+        self.advec_flows = self._rho_w*self._c_w*delta_H*res_temp[:,:-1]
+        self.conduc_flows = lbdm*grad_t(res_temp)
 
         self.res_T.append(res_temp)
         return res_temp,delta_H
