@@ -252,9 +252,9 @@ class Column:
 
         indice_capteurs_interieur = [int(i) for i in indice_capteurs_interieur]
         T_mesure_0,*reste = self.solve_transi(dict_params_0)
-        debit_0 = self.get_flows_solve(self)
-        advec_flow_0 = self.get_advec_flows_solve(self)
-        cond_flow_0 = self.get_conduc_flows_solve(self)
+        debit_0 = self.get_flows_solve()
+        advec_flow_0 = self.get_advec_flows_solve()
+        cond_flow_0 = self.get_conduc_flows_solve()
         energie_init = compute_energy(self._T_mesure_int, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
 
 
@@ -309,9 +309,9 @@ class Column:
                 energie.append(compute_energy(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp))
                 proba_acceptation.append(alpha_accept)
                 moy_acceptation.append(np.mean([proba_acceptation[k] for k in range(i+1)]))
-                debits.append(self.get_flows_solve(self))
-                flux_adv.append(self.get_advec_flows_solve(self))
-                flux_cond.append(self.get_conduc_flows_solve(self))
+                debits.append(self.get_flows_solve())
+                flux_adv.append(self.get_advec_flows_solve())
+                flux_cond.append(self.get_conduc_flows_solve())
 
             else: #si le candidat n'est pas accepté, on reprend les valeurs précédentes dans les tableaux
                 params.append(params[-1])
@@ -399,8 +399,10 @@ class Column:
 
     def get_flows_solve(self):
         return self.debit
+
     def get_advec_flows_solve(self):
         return self.advec_flows
+
     def get_conduc_flows_solve(self):
         return self.conduc_flows
         
