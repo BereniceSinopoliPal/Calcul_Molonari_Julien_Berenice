@@ -36,23 +36,20 @@ class Column:
         self._sigma_temp = sigma_meas_T
         self._rho_w = 1000
         self._c_w = 4180
-        self.grad_H = []
-        self.res_T = []
-        self.run_mcmc = False
         self._t_mesure = [i[0] for i in self._dH]
         self._T_mesure_int = [i[1][0:3] for i in T_measures]
 
-
+        self.grad_H = []
+        self.res_T = []
         self.debit = []        
         self.distrib_a_posteriori = None
         self.energie = None
         self.moy_acceptation = None
-        #self.profils_temp = None #à supprimer si on ne stocke pas tous les profils de température
         self.run_mcmc = False
         self.profil_temp_quantile = None
         self.param_quantile = None
-        self.advec_flows = []
-        self.conduc_flows = []
+        self.advec_flows = None
+        self.conduc_flows = None
         self.debit_quantile = None
         self.flux_adv_quantile = None
         self.flux_cond_quantile =None 
@@ -106,7 +103,7 @@ class Column:
             for p in range(len(list_P[j])-1):
                 delta_H[j].append((list_P[j][p+1]-list_P[j][p])/dz)   
         self.grad_H.append(np.asarray(delta_H))
-        self.debit.append([-K*i[0] for i in self.grad_H[-1] ])
+        self.debit = [-K*i[0] for i in self.grad_H[-1] ]
         return np.asarray(delta_H)
     
     def solve_thermique(self, param: tuple, nb_cel: int, grad_h, alpha=0.7):
@@ -189,22 +186,23 @@ class Column:
 
         def grad_t(resultat):
             Grad_compute=[]
-            for i in resultat:
+            for i,j in enumerate(resultat[:-1]):
+                dt = (self._t_mesure[i+1] - self._t_mesure[i]).total_seconds()
                 inter = []        
-                for j in range(len(i)-1):
-                    inter.append(-(i[j+1]-i[j])/0.1)
+                for p in range(len(j)-1):
+                    inter.append(-(j[p+1]-j[p])/dt)
                 Grad_compute.append(inter)
             return np.asarray(Grad_compute)
-        self.advec_flows.append(self._rho_w*self._c_w*delta_H*res_temp[:,:-1])
-        self.conduc_flows.append(lbdm*grad_t(res_temp))
+        self.advec_flows = self._rho_w*self._c_w*delta_H*res_temp[:,:-1]
+        self.conduc_flows = lbdm*grad_t(res_temp)
 
         self.res_T.append(res_temp)
         return res_temp,delta_H
 
     def mcmc(self, priors: dict, nb_iter: int, nb_cel: int, quantile):
+        
         self.run_mcmc = True 
-        def pi(T_mesure, T_calcul, sigma_obs):
-            
+        def pi(T_mesure, T_calcul, sigma_obs,norm_init = 1):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul).transpose()
             return (np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
@@ -231,9 +229,7 @@ class Column:
 
         #Calcul des indices de cellule correspondant à la profondeur des capteurs (on ne conserve pas ceux aux extrémités car ils servent pour les CL)
 
-        indice_capteurs = np.rint(self._profondeur_mesure*nb_cel/self._h)
-        indice_capteurs_interieur = indice_capteurs[0:3]
-
+        indice_capteurs_interieur = np.rint(self._profondeur_mesure*nb_cel/self._h)[0:3]
 
         #Initialisation des paramètres selon le prior et calcul des valeurs initiales
         moinslog10K_0 = np.random.uniform(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1])
@@ -256,8 +252,6 @@ class Column:
         advec_flow_0 = self.get_advec_flows_solve()
         cond_flow_0 = self.get_conduc_flows_solve()
         energie_init = compute_energy(self._T_mesure_int, [T_mesure_0[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
-
-
         #Initialisation des tableaux de valeurs 
         
         params = [param_0] #Distribution a posteriori des paramètres (k, lambda_s, n, rho_s, c_s)
@@ -271,6 +265,7 @@ class Column:
         moy_acceptation = [] #Moyenne des probabilités d'acceptation à chaque itération
             
         for i in tqdm(range(nb_iter)):
+        #for i in range(nb_iter):
             #Génération d'un état candidat
 
             moinslog10K_new = perturbation(priors['moinslog10K'][0][0], priors['moinslog10K'][0][1],params[-1][0], priors['moinslog10K'][1])
@@ -293,11 +288,12 @@ class Column:
             T_res,*reste = self.solve_transi(dict_params_new) #verifier qu'on a bien un array en sortie
 
             #Calcul de la probabilité d'acceptation
-            piX = pi(self._T_mesure_int, [profils_temp[-1][:,i] for i in indice_capteurs_interieur], self._sigma_temp)
-            piY = pi(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur], self._sigma_temp)
+            enX = compute_energy(self._T_mesure_int, [profils_temp[-1][:,i] for i in indice_capteurs_interieur],self._sigma_temp )
+            enY = compute_energy(self._T_mesure_int, [T_res[:,i] for i in indice_capteurs_interieur],self._sigma_temp)
+            rapport = np.exp(enX-enY)
             
-            if piX > 0:
-                alpha_accept = min(1, piY/piX)
+            if  True:
+                alpha_accept = min(1, rapport)
             else :
                 alpha_accept = 1
 
@@ -323,7 +319,7 @@ class Column:
                 
                 debits.append(debits[-1])
                 flux_adv.append(flux_adv[-1])
-                flux_cond.append(flux_adv[-1])
+                flux_cond.append(flux_cond[-1])
 
         self.distrib_a_posteriori = params
         self.energie = energie
@@ -337,7 +333,6 @@ class Column:
         self.profil_temp_quantile = np.quantile(profils_temp, quantile, axis=0)
 
         #Calcul des quantiles pour le débit 
-
         self.debit_quantile = np.quantile(debits, quantile)
 
         #Calcul des quantiles pour les flux thermiques
@@ -345,15 +340,10 @@ class Column:
         self.flux_cond_quantile = np.quantile(flux_cond, quantile, axis=0)
 
         #On réinitialise le tableau des profils de température, du débit et des fluxs pour ne pas les stocker en mémoire
-        profils_temp = []
-        debits = []
-        flux_adv = []
-        flux_cond = []
-    
-    
-    #Ici la list les méthodes (non exhaustives)
-    #pour recup les choses liées à la mcmc
-    #la liste est vouée à évoluer.
+        del profils_temp
+        del debits
+        del flux_adv
+        del flux_cond
 
     def sample_param(self):
         a = np.random.randint(0, len(self.distrib_a_posteriori))
