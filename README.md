@@ -11,9 +11,9 @@ Enjoy :)
 ## Table of contents
 
 - [Create your column with geometrical parameters](#Instance-a-column)
-- [Find températures and flow](#Solve-transitoire)
+- [Find temperatures and flows](#Solve-transitoire)
 - [Compute MCMC](#MCMC)
-- [Get results and params from simulations](#Get_params)
+- [Get results and parameters from simulations](#Get_params)
 
 ## Instance a column
 In process
