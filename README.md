@@ -1,7 +1,8 @@
 # Calcul MOLONARI project Berenice and Julien
-You can find in this repository the code of our calcul part of the MOLONARI project ! 
-You will find our code, corresponding to the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit). The different functions are presented in the table of contents.
-If you need more details, you should read the API
+You can find in this repository the code of our calcul part of the MOLONARI project !\
+You will find our code, corresponding to the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit).\ 
+The different functions are presented in the table of contents.
+If you need more details, you should read the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit).
 
 Don't forget to install all packages from requirements.txt by writing in your terminal : pip install -r requirements.txt
 
