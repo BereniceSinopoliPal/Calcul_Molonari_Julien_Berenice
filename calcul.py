@@ -207,12 +207,12 @@ class Column:
             
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul).transpose()
-            return (1/sigma_obs**5)*np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+            return (np.exp((-0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2))
 
         def compute_energy(T_mesure, T_calcul, sigma_obs):
             T_mesure = np.array(T_mesure)
             T_calcul = np.array(T_calcul).transpose()
-            return (-np.log((1/sigma_obs**5)) + (0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
+            return ((0.5/(sigma_obs**2))*np.linalg.norm(T_mesure - T_calcul)**2)
 
         def perturbation(borne_inf, borne_sup, previous_value, sigma):
             new_value = np.random.normal(previous_value, sigma)
