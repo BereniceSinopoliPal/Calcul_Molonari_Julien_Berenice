@@ -16,7 +16,18 @@ Enjoy :)
 - [Get results and parameters from simulations](#Get_params)
 
 ## Instance a column
-In process
+Before running a 'solve transitoire' or a 'mcmc', you have to create a column. To do so, create an instance of the Column class.
+You can create a column by using the 'from_dict' method and create a dictionnary with the following index :
+col_dict = {
+    "river_bed": 1, ##hauteur de la rivière en m
+    "offset" : 0.05,#décalage
+    "depth_sensors": np.array([.2, .4, .6, .8]), # Profondeur ou sont les capteurs
+    "dH_measures": dH_test,#[datetime,[P,T]]
+    "T_measures": T_test, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
+    "sigma_meas_P": .4, #incertitude sur la pression
+    "sigma_meas_T" : 0.1
+}
+
 
 ## Solve transitoire
 In process
