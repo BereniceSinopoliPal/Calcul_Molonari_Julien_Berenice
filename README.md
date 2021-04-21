@@ -77,7 +77,7 @@ get_all_lambda_s()\
 get_all_lambda_n()\
 get_all_rhos_cs()\
 get_all_acceptance_ratio()\
-get_temps_quantile()\ 
+get_temps_quantile()\
 get_moinslog10K_quantile()\
 get_lambda_quantile()\
 get_n_quantile()\
