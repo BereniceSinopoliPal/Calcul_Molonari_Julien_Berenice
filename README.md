@@ -42,7 +42,7 @@ params ={\
 'n':0.15,\
 'rhos_cs':4e6,\
 'nb_cel':100\
-}\
+}
 
 Then call :\
 instance.solve_transi(params)
@@ -66,7 +66,7 @@ instance.mcmc(priors)
 
 ## Get params ans results
 The previous methods return nothing. It means that you have to use our custom methods to access any attributs. To access flows and temperatures profils, you have to use :\
-instance.method()\
+instance.method()
 
 The list of methods is :
 sample_param()\
