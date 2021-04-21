@@ -17,7 +17,7 @@ Enjoy :)
 
 ## Instance a column
 Before running a 'solve transitoire' or a 'mcmc', you have to create a column. To do so, create an instance of the Column class.
-You can create a column by using the 'from_dict' method and create a dictionnary with the following index :
+You can create a column by using the 'from_dict' method and create a dictionnary with the following keys :
 col_dict = {\
     "river_bed": 1, ##hauteur de la rivière en m\
     "offset" : 0.05,#décalage\
@@ -28,12 +28,62 @@ col_dict = {\
     "sigma_meas_T" : 0.1\
 }
 
+Than you can use instance.mcmc(params) or instance.solve_transi(params)
+we will explain below how to use these two methods.
 
 ## Solve transitoire
-In process
+You have already created your instance of the column class.
+You want to solve your problem, given boundaries conditions. 
+To use this methods, you also have to create a dictionnary with the following keys :
+
+params ={\
+'moinslog10K':-np.log(8e-4),\
+'lambda_s': 1.08,\ 
+'n':0.15,\
+'rhos_cs':4e6,\
+'nb_cel':100\
+}\
+
+Then call :\
+instance.solve_transi(params)
+
 
 ## MCMC
-In process
+You have already created your instance of the column class.
+You want to solve the inverse problem, and find the parameters, given measures. 
+To use this methods, you also have to create a dictionnary with the following keys :
+
+priors = {\
+    "moinslog10K": ((3, 10), 0.2), # (intervalle, sigma)\
+    "n": ((0.01,0.2),0.01),\
+    "lambda_s": ((1,5),0.1),\
+    "rhos_cs":((700*650,2800*1080),100000),\
+}\
+The priors are used to explore the space of the differents parameters and find states with a low energy.
+
+Then call :\
+instance.mcmc(priors)
 
 ## Get params ans results
-In process
+The previous methods return nothing. It means that you have to use our custom methods to access any attributs. To access flows and temperatures profils, you have to use :\
+instance.method()\
+
+The list of methods is :
+sample_param()\
+get_all_params()\
+get_best_params()\
+get_all_moinslog10K()\
+get_all_lambda_s()\
+get_all_lambda_n()\
+get_all_rhos_cs()\
+get_all_acceptance_ratio()\
+get_temps_quantile()\ 
+get_moinslog10K_quantile()\
+get_lambda_quantile()\
+get_n_quantile()\
+get_rhoscs_quantile()\
+get_flows_solve()\
+get_advec_flows_solve()\
+get_conduc_flows_solve()\
+get_times_mcmc()\
+get_depths_mcmc()\
