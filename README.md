@@ -1,6 +1,6 @@
 # Calcul MOLONARI project Berenice and Julien
 You can find in this repository the code of our calcul part of the MOLONARI project !\
-You will find our code, corresponding to the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit).\ 
+You will find our code, corresponding to the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit).\
 The different functions are presented in the table of contents.
 If you need more details, you should read the [API](https://docs.google.com/document/d/1MTkTiIvkihPglCRGPvlOzKta0icA32QY/edit).
 
