@@ -3,23 +3,8 @@ from scipy.interpolate import lagrange
 import matplotlib.pyplot as plt
 import random as rd
 from tqdm import tqdm
+from numba import njit
 
-col_dict = {
-    "river_bed": 1, ##hauteur de la rivière en m
-    "offset" : 0.05,#décalage
-    "depth_sensores": [.1, .2, .3, .4], # Profondeur ou sont les capteurs
-    "dH_mesures": list, # Decalage de profondeur des capteurs
-    "temp_mesure": np.array, # shape (N,4,2) Chaque 4-uplets de mesure de temperature au temps t
-    "sigma_meas_P": .4, #incertitude sur la pression
-    "sigma_meas_T" : [3., 2., 4., 3.]
-}
-priors = {
-    "moinslog10K": ((3, 10), 1), # (intervalle, sigma)
-    "n": ...,
-    "lambda_s": ...,
-    "rhos_cs":...,
-    "c_s":...
-}
 
 class Column:
     @classmethod
@@ -92,7 +77,7 @@ class Column:
                 B[i][i] = (2*K*(1-alpha)/dz**2) - Ss/dt
                 B[i][i+1] = -K*(1-alpha)/dz**2
             
-            C = B @ list_P[j-1]
+            C = np.dot(B,list_P[j-1])
             C[0], C[nb_cel-1] = self._dH[j][1][0],0
 
             res = np.linalg.solve(A, C)

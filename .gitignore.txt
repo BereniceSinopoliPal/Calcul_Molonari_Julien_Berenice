@@ -1,4 +1,3 @@
 __pycache__/
 "d\303\251mo calcul.ipynb"
 solveur.py
-value to test.csv
