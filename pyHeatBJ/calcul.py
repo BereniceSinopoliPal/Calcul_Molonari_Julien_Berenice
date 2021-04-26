@@ -168,14 +168,14 @@ class Column:
         delta_H = self.solve_hydro((K,n),nb_cel)
 
         res_temp= self.solve_thermique((K,lbds,n,pscs),nb_cel,delta_H)
+        dz = self._h/nb_cel
 
         def grad_t(resultat):
             Grad_compute=[]
             for i,j in enumerate(resultat[:-1]):
-                dt = (self._t_mesure[i+1] - self._t_mesure[i]).total_seconds()
                 inter = []        
                 for p in range(len(j)-1):
-                    inter.append(-(j[p+1]-j[p])/dt)
+                    inter.append(-(j[p+1]-j[p])/dz)
                 Grad_compute.append(inter)
             return np.asarray(Grad_compute)
         self.advec_flows = self._rho_w*self._c_w*delta_H*res_temp[:,:-1]
